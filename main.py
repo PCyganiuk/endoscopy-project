@@ -1,54 +1,29 @@
-import pandas as pd
-import json
-import numpy as np
+import argparse
+import os
+import sys
+
 import tensorflow as tf
 
 from tensorflow.keras import layers, models
 
-labels_path = "/mnt/e/ERS/ers/labels.csv"
-label_names = "/mnt/e/ERS/ers/names.json"
-base_dir = "/mnt/e/ERS/ers/"
+from src.dataset_loader import DatasetLoader
 
-df = pd.read_csv(labels_path, sep="\t")
-df.head()
+DEFAULT_TEST_SIZE = 0.2
+DEFAULT_TRAIN_SIZE = 0.8
+EMPTY_FLOAT = -1
 
-multi_labels = (
-    df.dropna(subset=["label"])
-      .groupby("file")["label"]
-      .apply(list)
-      .reset_index()
-)
+def dir_path(path):
+    if os.path.isdir(path):
+        return path
+    raise NotADirectoryError(path)
 
-multi_labels.head()
+def file_path(path):
+    if os.path.isfile(path):
+        return path
+    raise FileNotFoundError(path)
 
-with open(label_names) as f:
-    code_to_name = json.load(f)
-
-code_to_idx = {code: i for i, code in enumerate(sorted(code_to_name.keys()))}
-num_classes = len(code_to_idx)
-
-def make_multihot(label_list, num_classes=num_classes):
-    vec = np.zeros(num_classes, dtype=np.float32)
-    for code in label_list:
-        if code in code_to_idx:
-            vec[code_to_idx[code]] = 1.0
-    return vec
-
-multi_labels["multi_hot"] = multi_labels["label"].apply(lambda x: make_multihot(x, num_classes))
-
-multi_labels = (
-    df.dropna(subset=["label"])
-      .groupby("file")["label"]
-      .apply(list)
-      .reset_index()
-)
-
-multi_labels["multi_hot"] = multi_labels["label"].apply(
-    lambda x: make_multihot(x, num_classes)
-)
-
-image_paths = [base_dir + f for f in multi_labels["file"].tolist()]
-multi_hot_labels = np.stack(multi_labels["multi_hot"].values)
+def is_dir_empty(path):
+    return not next(os.scandir(path), None)
 
 def preprocess_with_padding(image_path, label=None):
     img = tf.io.read_file(image_path)
@@ -62,7 +37,7 @@ def preprocess_with_padding(image_path, label=None):
         return img
     return img, label
 
-dataset_labeled = tf.data.Dataset.from_tensor_slices((image_paths, multi_hot_labels))
+dataset_labeled = tf.data.Dataset.from_tensor_slices((labeled_image_paths, multi_hot_labels))
 dataset_labeled = dataset_labeled.map(preprocess_with_padding).batch(8).shuffle(100)
 base_model = tf.keras.applications.ResNet50(
     include_top=False,
@@ -90,3 +65,76 @@ model.save("/mnt/e/ERS/ers/resnet50_multilabel.h5")
 #X_combined = np.concatenate([dataset_labeled, X_unlabeled_selected])
 #Y_combined = np.concatenate([Y_labeled, pseudo_labels_selected])
 #model.fit(X_combined, Y_combined)
+
+
+def setup_argument_parser():
+    parser = argparse.ArgumentParser(description='Dataset preparator', formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    parser.add_argument("--train-size",
+                        type=float,
+                        default=EMPTY_FLOAT,
+                        help="Size of train set split (sum of train+test+validation size must equal 1)",
+                        required=False)
+    parser.add_argument("--test-size",
+                        type=float,
+                        default=EMPTY_FLOAT,
+                        help="Size of test set split (sum of train+test+validation size must equal 1)",
+                        required=False)
+    parser.add_argument("--output-path",
+                        help="Output path for generated data (path content should be empty, no folders nor files inside, otherwise use -f to force clear)",
+                        default="./data",
+                        type=str,
+                        required=False)
+    parser.add_argument("--ers-path",
+                        help="Path for ERS dataset (folder containing patients ids e.g. \"0001\")",
+                        type=dir_path,
+                        required=True)
+    parser.add_argument("--galar-path",
+                        help="Path for Galar dataset (folder containing patients ids e.g. \"0001\")",
+                        type=dir_path,
+                        required=False)
+    parser.add_argument("--type-num",
+                        help="Choose number from 0 to 5 to define which experiment to run",
+                        type=int,
+                        default=0,
+                        required=True)
+    return parser
+
+def parse_args(args):
+    parser = setup_argument_parser()
+    args = parser.parse_args(args)
+
+    if args.hyperkvasir_path is None and args.ers_path is None:
+        parser.error("At least one of --hyperkvasir-path and --ers-path required")
+
+    missing_sizes_count = 0
+    for arg in [args.train_size, args.test_size]:
+        if arg == EMPTY_FLOAT:
+            missing_sizes_count += 1
+    if missing_sizes_count == 2:
+        args.train_size = DEFAULT_TRAIN_SIZE
+        args.test_size = DEFAULT_TEST_SIZE
+    elif missing_sizes_count > 1:
+        if args.train_size == 1:
+            args.test_size = 0
+        elif args.test_size == 1:
+            args.train_size = 0
+        else:
+            parser.error("Only one of --train-size and --test-size can be skipped (set one to 1.0 or provide another one)")
+    if args.train_size == EMPTY_FLOAT:
+        args.train_size = 1 - args.test_size
+    if args.test_size == EMPTY_FLOAT:
+        args.test_size = 1 - args.train_size
+    if round(args.train_size + args.test_size) != 1.0:
+        parser.error("Sum of --train-size and --test-size should be equal 1.0")
+    
+    return args
+
+def main(args):
+    setup_argument_parser()
+    args = parse_args(args)
+    DatasetLoader()
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
