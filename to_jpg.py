@@ -11,19 +11,16 @@ def convert_png_to_jpg_preserve_structure(input_folder, output_folder):
         if rel_path.split('/')[0].isdigit():
             if int(rel_path.split('/')[0]) < 916:
                 continue
-        # Check if we are inside a 'labels' folder
         if os.path.basename(root).lower() == "labels":
             rel_path = os.path.relpath(root, input_folder)
             target_folder = os.path.join(output_folder, rel_path)
             os.makedirs(target_folder, exist_ok=True)
             
-            # Copy all files in labels folder
             for file in files:
                 src_path = os.path.join(root, file)
                 dst_path = os.path.join(target_folder, file)
                 shutil.copy2(src_path, dst_path)
             print(f"Copied 'labels' folder: {root} -> {target_folder}")
-            # Skip processing PNGs in this folder
             continue
 
         # Otherwise, convert PNGs to JPG
