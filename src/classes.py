@@ -91,6 +91,8 @@ class Classes:
         self.unified_classes = [
             "ulcer", "polyp", "active_bleeding", "blood",
             "erythema", "erosion", "angiectasia", "IBD",
-            "foreign_body", "esophagitis", "varices",
-            "celiac", "cancer", "other", "healthy"
+            "foreign_body", "esophagitis", "varices", "hematin",
+            "celiac", "cancer", "lymphangioectasis", "other", "healthy"
         ]
+
+        self.num_classes = len(self.unified_classes)

@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import numpy as np
+import os
 
 from classes import Classes
 
@@ -10,7 +11,7 @@ class DatasetLoader:
 
         self.ers_path = args.ers_path
         self.ers_path = "/mnt/e/ERS/ers_jpg/"
-        self.galar_path = args.galar_path
+        self.galar_path = '/mnt/e/galar/'
 
         self.train_size = args.train_size
         self.test_size = args.test_size
@@ -77,3 +78,88 @@ class DatasetLoader:
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
         return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
+    
+    def prepare_galar(self):
+        classes = Classes()
+        base_dir = self.galar_path  # e.g., "datasets/galar/"
+        labels_dir = os.path.join(base_dir, "labels")
+
+        class_to_idx = {cls: i for i, cls in enumerate(classes.unified_classes)}
+        num_classes = len(class_to_idx)
+
+        labeled_image_paths = []
+        multi_hot_labels = []
+        unlabeled_image_paths = []
+
+        # Iterate over folders 1–80 (or as many label files as exist)
+        for folder_id in range(1, 81):
+            folder_path = os.path.join(base_dir, str(folder_id))
+            label_path = os.path.join(labels_dir, f"{folder_id}.csv")
+
+            if not os.path.exists(label_path):
+                continue
+            if not os.path.exists(folder_path):
+                continue
+
+            df = pd.read_csv(label_path, sep=",", low_memory=False)
+
+            # Identify columns with binary disease indicators
+            binary_cols = [
+                c for c in df.columns
+                if c not in ["index", "section", "frame"]
+            ]
+
+            # Iterate through each row in the label file
+            for _, row in df.iterrows():
+                frame_number = int(row["frame"])
+                frame_file = f"frame_{frame_number:06d}.jpg"
+                img_path = os.path.join(folder_path, frame_file)
+
+                if not os.path.exists(img_path):
+                    continue  # skip missing files
+
+                # Collect active Galar labels (value == 1)
+                active_labels = [col for col in binary_cols if row[col] == 1]
+
+                # Map Galar → unified labels
+                unified_labels = []
+                for lbl in active_labels:
+                    if hasattr(classes, "galar_to_ers") and lbl in classes.galar_to_ers:
+                        unified_labels.append(classes.galar_to_ers[lbl])
+                    elif lbl in class_to_idx:  # already unified label name
+                        unified_labels.append(lbl)
+
+                # If no label active, assign 'healthy'
+                if not unified_labels:
+                    unified_labels = ["healthy"]
+
+                # Create multi-hot vector
+                vec = np.zeros(num_classes, dtype=np.float32)
+                for lbl in unified_labels:
+                    if lbl in class_to_idx:
+                        vec[class_to_idx[lbl]] = 1.0
+
+                labeled_image_paths.append(img_path)
+                multi_hot_labels.append(vec)
+
+            # Detect unlabeled images (exist in folder but not in CSV)
+            all_imgs = [
+                f for f in os.listdir(folder_path)
+                if f.lower().endswith((".jpg", ".png"))
+            ]
+            labeled_imgs = set(f"frame_{int(fr):06d}.jpg" for fr in df["frame"])
+            unlabeled = [os.path.join(folder_path, f) for f in all_imgs if f not in labeled_imgs]
+            unlabeled_image_paths.extend(unlabeled)
+
+        # Convert label list → array
+        if len(multi_hot_labels) > 0:
+            multi_hot_labels = np.stack(multi_hot_labels)
+        else:
+            multi_hot_labels = np.zeros((0, num_classes), dtype=np.float32)
+
+        unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
+
+        return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
+
+    
+loader = DatasetLoader().prepare_galar()
