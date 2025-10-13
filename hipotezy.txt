@@ -1,11 +1,9 @@
 baseline - semi supervised multilabel classification na samym ers
 
-1. Model wytrenowany tylko na ERS semi supervised osiągnie gorszy wynik niż przy treningu na galarze
+1. Trening na galarze test na ers
 
-2. trening na Galar i fine-tuning na ERS polepszy wynik ERS
+2. trening na Galar i fine-tuning na ERS test na ERS
 
 3. Trening z próbkami różnych modalności w tym samym batchu poprawi wyniki względem baseline'u
 
 4. Wykorzystanie nieoznakowanych danych ERS z pseudooznakowaniem, przy jednoczesnym wykorzystaniu Galar jako nadzorowanego wsparcia, zapewni lepsze wyniki niż nadzorowane szkolenie z wykorzystaniem wyłącznie ERS.
-
-5. przerobienie danych z ers do formatu kapsułkowej i połączenie z galarem pomoże
