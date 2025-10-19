@@ -3,20 +3,23 @@ import json
 import numpy as np
 import os
 
+from sklearn.model_selection import train_test_split
+import re
+
 from classes import Classes
 
 class DatasetLoader:
 
-    def __init__(self,args):
+    def __init__(self,):
 
-        self.ers_path = args.ers_path
+        #self.ers_path = args.ers_path
         self.ers_path = "/mnt/e/ERS/ers_jpg/"
         self.galar_path = '/mnt/e/galar/'
 
-        self.train_size = args.train_size
-        self.test_size = args.test_size
+        #self.train_size = args.train_size
+        #self.test_size = args.test_size
 
-        self.type_num = args.type_num
+        #self.type_num = args.type_num
 
 
     def prepare_data(self):
@@ -77,6 +80,20 @@ class DatasetLoader:
 
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
+        output_path = f"{base_dir}ers_dataset_summary.txt"
+        with open(output_path, "w") as f:
+            # labeled section
+            for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
+                label_str = " ".join(map(str, label_vec.astype(int)))
+                f.write(f"{path} {label_str}\n")
+
+            # unlabeled section
+            f.write("\n# Unlabeled images\n")
+            for path in unlabeled_image_paths:
+                f.write(f"{path}\n")
+
+        print(f"Saved dataset summary to {output_path}")
+
         return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
     
     def prepare_galar(self):
@@ -112,7 +129,7 @@ class DatasetLoader:
             # Iterate through each row in the label file
             for _, row in df.iterrows():
                 frame_number = int(row["frame"])
-                frame_file = f"frame_{frame_number:06d}.jpg"
+                frame_file = f"frame_{frame_number:06d}.PNG"
                 img_path = os.path.join(folder_path, frame_file)
 
                 if not os.path.exists(img_path):
@@ -159,7 +176,68 @@ class DatasetLoader:
 
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
+        output_path = f"{base_dir}ers_dataset_summary.txt"
+        with open(output_path, "w") as f:
+            # labeled section
+            for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
+                label_str = " ".join(map(str, label_vec.astype(int)))
+                f.write(f"{path} {label_str}\n")
+
+            # unlabeled section
+            f.write("\n# Unlabeled images\n")
+            for path in unlabeled_image_paths:
+                f.write(f"{path}\n")
+
+        print(f"Saved dataset summary to {output_path}")
+
         return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
+    
+    def split_by_patient_id(
+        self,
+        labeled_image_paths: list[str],
+        multi_hot_labels: np.ndarray,
+        test_size: float = 0.2,
+        random_state: int = 42
+        ):
+
+
+        # Extract patient IDs (e.g., /0001/samples/ → patient_id = "0001")
+        def extract_patient_id(path: str):
+            match = re.search(r"/(\d+)/", path)
+            return match.group(1) if match else None
+
+        patient_ids = [extract_patient_id(p) for p in labeled_image_paths]
+        patient_ids = np.array(patient_ids)
+
+        # Identify unique patients and split
+        unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
+        train_patients, test_patients = train_test_split(
+            unique_patients, test_size=test_size, random_state=random_state
+        )
+
+        # Create masks
+        train_mask = np.isin(patient_ids, train_patients)
+        test_mask = np.isin(patient_ids, test_patients)
+
+        # Split labeled data
+        labeled_image_paths_train = np.array(labeled_image_paths)[train_mask].tolist()
+        multi_hot_labels_train = multi_hot_labels[train_mask]
+
+        labeled_image_paths_test = np.array(labeled_image_paths)[test_mask].tolist()
+        multi_hot_labels_test = multi_hot_labels[test_mask]
+
+        print(f"Train patients: {len(train_patients)} | Test patients: {len(test_patients)}")
+        print(f"Train samples: {len(labeled_image_paths_train)} | Test samples: {len(labeled_image_paths_test)}")
+
+        return (
+            labeled_image_paths_train,
+            multi_hot_labels_train,
+            labeled_image_paths_test,
+            multi_hot_labels_test,
+        )
+
 
     
-loader = DatasetLoader().prepare_galar()
+labeled, label, unalebed =  DatasetLoader().prepare_ers()
+DatasetLoader().split_by_patient_id(labeled, label, unalebed)
+
