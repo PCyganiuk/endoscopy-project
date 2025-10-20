@@ -10,16 +10,16 @@ from classes import Classes
 
 class DatasetLoader:
 
-    def __init__(self,):
+    def __init__(self, args):
 
-        #self.ers_path = args.ers_path
-        self.ers_path = "/mnt/e/ERS/ers_jpg/"
-        self.galar_path = '/mnt/e/galar/'
+        self.ers_path = args.ers_path
+        #self.ers_path = "/mnt/e/ERS/ers_jpg/"
+        #self.galar_path = '/mnt/e/galar/'
 
-        #self.train_size = args.train_size
-        #self.test_size = args.test_size
+        self.train_size = args.train_size
+        self.test_size = args.test_size
 
-        #self.type_num = args.type_num
+        self.type_num = args.type_num
 
 
     def prepare_data(self):
@@ -82,12 +82,10 @@ class DatasetLoader:
 
         output_path = f"{base_dir}ers_dataset_summary.txt"
         with open(output_path, "w") as f:
-            # labeled section
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
                 label_str = " ".join(map(str, label_vec.astype(int)))
                 f.write(f"{path} {label_str}\n")
 
-            # unlabeled section
             f.write("\n# Unlabeled images\n")
             for path in unlabeled_image_paths:
                 f.write(f"{path}\n")
@@ -98,7 +96,7 @@ class DatasetLoader:
     
     def prepare_galar(self):
         classes = Classes()
-        base_dir = self.galar_path  # e.g., "datasets/galar/"
+        base_dir = self.galar_path
         labels_dir = os.path.join(base_dir, "labels")
 
         class_to_idx = {cls: i for i, cls in enumerate(classes.unified_classes)}
@@ -108,7 +106,6 @@ class DatasetLoader:
         multi_hot_labels = []
         unlabeled_image_paths = []
 
-        # Iterate over folders 1–80 (or as many label files as exist)
         for folder_id in range(1, 81):
             folder_path = os.path.join(base_dir, str(folder_id))
             label_path = os.path.join(labels_dir, f"{folder_id}.csv")
@@ -120,37 +117,31 @@ class DatasetLoader:
 
             df = pd.read_csv(label_path, sep=",", low_memory=False)
 
-            # Identify columns with binary disease indicators
             binary_cols = [
                 c for c in df.columns
                 if c not in ["index", "section", "frame"]
             ]
 
-            # Iterate through each row in the label file
             for _, row in df.iterrows():
                 frame_number = int(row["frame"])
                 frame_file = f"frame_{frame_number:06d}.PNG"
                 img_path = os.path.join(folder_path, frame_file)
 
                 if not os.path.exists(img_path):
-                    continue  # skip missing files
+                    continue
 
-                # Collect active Galar labels (value == 1)
                 active_labels = [col for col in binary_cols if row[col] == 1]
 
-                # Map Galar → unified labels
                 unified_labels = []
                 for lbl in active_labels:
                     if hasattr(classes, "galar_to_ers") and lbl in classes.galar_to_ers:
                         unified_labels.append(classes.galar_to_ers[lbl])
-                    elif lbl in class_to_idx:  # already unified label name
+                    elif lbl in class_to_idx:
                         unified_labels.append(lbl)
 
-                # If no label active, assign 'healthy'
                 if not unified_labels:
                     unified_labels = ["healthy"]
 
-                # Create multi-hot vector
                 vec = np.zeros(num_classes, dtype=np.float32)
                 for lbl in unified_labels:
                     if lbl in class_to_idx:
@@ -159,7 +150,6 @@ class DatasetLoader:
                 labeled_image_paths.append(img_path)
                 multi_hot_labels.append(vec)
 
-            # Detect unlabeled images (exist in folder but not in CSV)
             all_imgs = [
                 f for f in os.listdir(folder_path)
                 if f.lower().endswith((".jpg", ".png"))
@@ -168,7 +158,6 @@ class DatasetLoader:
             unlabeled = [os.path.join(folder_path, f) for f in all_imgs if f not in labeled_imgs]
             unlabeled_image_paths.extend(unlabeled)
 
-        # Convert label list → array
         if len(multi_hot_labels) > 0:
             multi_hot_labels = np.stack(multi_hot_labels)
         else:
@@ -178,12 +167,10 @@ class DatasetLoader:
 
         output_path = f"{base_dir}ers_dataset_summary.txt"
         with open(output_path, "w") as f:
-            # labeled section
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
                 label_str = " ".join(map(str, label_vec.astype(int)))
                 f.write(f"{path} {label_str}\n")
 
-            # unlabeled section
             f.write("\n# Unlabeled images\n")
             for path in unlabeled_image_paths:
                 f.write(f"{path}\n")
@@ -192,7 +179,7 @@ class DatasetLoader:
 
         return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
     
-    def split_by_patient_id(
+    def split_labeled_by_patient_id(
         self,
         labeled_image_paths: list[str],
         multi_hot_labels: np.ndarray,
@@ -200,8 +187,6 @@ class DatasetLoader:
         random_state: int = 42
         ):
 
-
-        # Extract patient IDs (e.g., /0001/samples/ → patient_id = "0001")
         def extract_patient_id(path: str):
             match = re.search(r"/(\d+)/", path)
             return match.group(1) if match else None
@@ -209,17 +194,14 @@ class DatasetLoader:
         patient_ids = [extract_patient_id(p) for p in labeled_image_paths]
         patient_ids = np.array(patient_ids)
 
-        # Identify unique patients and split
         unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
         train_patients, test_patients = train_test_split(
             unique_patients, test_size=test_size, random_state=random_state
         )
 
-        # Create masks
         train_mask = np.isin(patient_ids, train_patients)
         test_mask = np.isin(patient_ids, test_patients)
 
-        # Split labeled data
         labeled_image_paths_train = np.array(labeled_image_paths)[train_mask].tolist()
         multi_hot_labels_train = multi_hot_labels[train_mask]
 
@@ -235,9 +217,4 @@ class DatasetLoader:
             labeled_image_paths_test,
             multi_hot_labels_test,
         )
-
-
-    
-labeled, label, unalebed =  DatasetLoader().prepare_ers()
-DatasetLoader().split_by_patient_id(labeled, label, unalebed)
 
