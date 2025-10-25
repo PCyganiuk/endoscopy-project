@@ -1,0 +1,1 @@
+python3 main.py --train-size 0.8 --ers-path /mnt/e/ERS/ers_jpg/ --galar-path /mnt/e/galar/ --type-num 0
