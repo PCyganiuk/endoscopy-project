@@ -63,8 +63,8 @@ def parse_args(args):
     parser = setup_argument_parser()
     args = parser.parse_args(args)
 
-    if args.hyperkvasir_path is None and args.ers_path is None:
-        parser.error("At least one of --hyperkvasir-path and --ers-path required")
+    if args.galar_path is None and args.ers_path is None:
+        parser.error("At least one of --galar-path and --ers-path required")
 
     missing_sizes_count = 0
     for arg in [args.train_size, args.test_size]:

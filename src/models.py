@@ -19,9 +19,14 @@ class Models:
     def baseline(self):
         num_classes = Classes().num_classes
         dataset_loader = DatasetLoader(self.args)
-        self.ers_labeled, self.ers_labels, self.ers_unlabeled = dataset_loader.prepare_ers()
-        dataset_labeled = tf.data.Dataset.from_tensor_slices((self.ers_labeled, self.ers_labels))
-        dataset_labeled = dataset_labeled.map(self.preprocess_with_padding).batch(8).shuffle(100)
+        self.ers_labeled_all, self.ers_labels_all, self.ers_unlabeled_all = dataset_loader.prepare_ers()
+        self.ers_labeled_train, self.ers_labels_train, self.ers_labeled_test, self.ers_labels_test, self.ers_unlabeled = dataset_loader.split_labeled_by_patient_id(self.ers_labeled_all, self.ers_labels_all, self.ers_unlabeled_all, self.args.test_size)
+        dataset_labeled_train = tf.data.Dataset.from_tensor_slices((self.ers_labeled_train, self.ers_labels_train))
+        dataset_labeled_train = dataset_labeled_train.map(self.preprocess_with_padding).batch(8).shuffle(100)
+
+        dataset_labeled_test = tf.data.Dataset.from_tensor_slices((self.ers_labeled_test, self.ers_labels_test))
+        dataset_labeled_test = dataset_labeled_test.map(self.preprocess_with_padding).batch(8)
+        
         base_model = tf.keras.applications.ResNet50(
             include_top=False,
             weights="imagenet",
@@ -40,7 +45,7 @@ class Models:
             metrics=[tf.keras.metrics.AUC(name="auc"), "accuracy"]
         )
 
-        preds = model.fit(dataset_labeled,epochs=10)
+        preds = model.fit(dataset_labeled_train,epochs=1)
 
         print("Generating pseudo-labels for ERS unlabeled data")
         dataset_unlabeled = tf.data.Dataset.from_tensor_slices(self.ers_unlabeled)
@@ -55,17 +60,22 @@ class Models:
 
         print(f"Selected {len(ers_confident_images)} pseudo-labeled ERS samples")
 
-        X_combined = np.concatenate([self.ers_labeled, ers_confident_images])
-        Y_combined = np.concatenate([self.ers_labels, ers_confident_labels])
+        X_combined = np.concatenate([self.ers_labeled_train, ers_confident_images])
+        Y_combined = np.concatenate([self.ers_labels_train, ers_confident_labels])
 
         dataset_combined = tf.data.Dataset.from_tensor_slices((X_combined, Y_combined))
         dataset_combined = dataset_combined.map(self.preprocess_with_padding).batch(8).shuffle(200)
 
         print("Retraining on labeled + pseudo-labeled ERS data")
-        model.fit(dataset_combined, epochs=5)
+        model.fit(dataset_combined, epochs=1)
 
         model.save("/mnt/e/ERS/ers/resnet50_semisupervised_multilabel.h5")
         print("Semi-supervised ERS training completed.")
+        
+        results = model.evaluate(dataset_labeled_test, verbose=1)
+        for name, value in zip(model.metrics_names, results):
+            print(f"  {name}: {value:.4f}")
+        
 
 
     

@@ -6,7 +6,7 @@ import os
 from sklearn.model_selection import train_test_split
 import re
 
-from classes import Classes
+from src.classes import Classes
 
 class DatasetLoader:
 
@@ -20,11 +20,6 @@ class DatasetLoader:
         self.test_size = args.test_size
 
         self.type_num = args.type_num
-
-
-    def prepare_data(self):
-        if self.type_num == 0:
-            self.prepare_ers()
 
     def prepare_ers(self):
         classes = Classes()
@@ -183,6 +178,7 @@ class DatasetLoader:
         self,
         labeled_image_paths: list[str],
         multi_hot_labels: np.ndarray,
+        unlabeled_image_paths: list[str],
         test_size: float = 0.2,
         random_state: int = 42
         ):
@@ -195,6 +191,7 @@ class DatasetLoader:
         patient_ids = np.array(patient_ids)
 
         unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
+        
         train_patients, test_patients = train_test_split(
             unique_patients, test_size=test_size, random_state=random_state
         )
@@ -208,13 +205,23 @@ class DatasetLoader:
         labeled_image_paths_test = np.array(labeled_image_paths)[test_mask].tolist()
         multi_hot_labels_test = multi_hot_labels[test_mask]
 
+        unlabeled_patient_ids = [extract_patient_id(p) for p in unlabeled_image_paths]
+        unlabeled_mask = np.isin(unlabeled_patient_ids, train_patients)
+        unlabeled_image_paths_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
+
         print(f"Train patients: {len(train_patients)} | Test patients: {len(test_patients)}")
         print(f"Train samples: {len(labeled_image_paths_train)} | Test samples: {len(labeled_image_paths_test)}")
-
+        print(f"Filtered unlabeled samples: {len(unlabeled_image_paths_filtered)} / {len(unlabeled_image_paths)}")
+        
         return (
             labeled_image_paths_train,
             multi_hot_labels_train,
             labeled_image_paths_test,
             multi_hot_labels_test,
+            unlabeled_image_paths_filtered,
         )
 
+
+#loader = DatasetLoader()
+#labeled,labels,unlabeled = loader.prepare_ers()
+#loader.split_labeled_by_patient_id(labeled, labels, unlabeled)
