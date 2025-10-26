@@ -1,10 +1,10 @@
 import pandas as pd
-import json
 import numpy as np
 import os
+import re
 
 from sklearn.model_selection import train_test_split
-import re
+from sklearn.model_selection import KFold
 
 from src.classes import Classes
 
@@ -24,7 +24,7 @@ class DatasetLoader:
     def prepare_ers(self):
         classes = Classes()
         base_dir = self.ers_path
-        labels_path = f"{base_dir}labels_jpg.csv"
+        labels_path = f"{base_dir}labels.csv"
 
         df = pd.read_csv(labels_path, sep="\t", low_memory=False)
 
@@ -75,7 +75,7 @@ class DatasetLoader:
 
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
-        output_path = f"{base_dir}ers_dataset_summary.txt"
+        output_path = f"data_summary/ers_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
                 label_str = " ".join(map(str, label_vec.astype(int)))
@@ -160,7 +160,7 @@ class DatasetLoader:
 
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
-        output_path = f"{base_dir}ers_dataset_summary.txt"
+        output_path = f"data_summary/ers_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
                 label_str = " ".join(map(str, label_vec.astype(int)))
@@ -221,6 +221,33 @@ class DatasetLoader:
             unlabeled_image_paths_filtered,
         )
 
+    def split_patients_kfold(self, labeled_image_paths: list[str], labels: np.array, unlabeled_image_paths: list[str], n_splits=20, seed=42):
+        def extract_patient_id(path):
+            match = re.search(r"/(\d+)/", path)
+            return match.group(1) if match else None
+
+        patient_ids = np.array([extract_patient_id(p) for p in labeled_image_paths])
+        unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
+
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
+
+        for train_idx, test_idx in kf.split(unique_patients):
+            train_patients = unique_patients[train_idx]
+            test_patients = unique_patients[test_idx]
+
+            train_mask = np.isin(patient_ids, train_patients)
+            test_mask = np.isin(patient_ids, test_patients)
+
+            labeled_train = np.array(labeled_image_paths)[train_mask].tolist()
+            labels_train = labels[train_mask]
+            labeled_test = np.array(labeled_image_paths)[test_mask].tolist()
+            labels_test = labels[test_mask]
+
+            unlabeled_patient_ids = np.array([extract_patient_id(p) for p in unlabeled_image_paths])
+            unlabeled_mask = np.isin(unlabeled_patient_ids, train_patients)
+            unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
+
+            yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
 
 #loader = DatasetLoader()
 #labeled,labels,unlabeled = loader.prepare_ers()

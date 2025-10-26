@@ -4,7 +4,7 @@ import sys
 
 import tensorflow as tf
 
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models # type: ignore
 
 from src.dataset_loader import DatasetLoader
 from src.models import Models
@@ -31,7 +31,7 @@ def setup_argument_parser():
 
     parser.add_argument("--train-size",
                         type=float,
-                        default=EMPTY_FLOAT,
+                        default=0.8,
                         help="Size of train set split (sum of train+test+validation size must equal 1)",
                         required=False)
     parser.add_argument("--test-size",
@@ -56,6 +56,26 @@ def setup_argument_parser():
                         help="Choose number from 0 to 5 to define which experiment to run",
                         type=int,
                         default=0,
+                        required=True)
+    parser.add_argument("--epochs",
+                        help="Choose number of epochs",
+                        type=int,
+                        default=10,
+                        required=True)
+    parser.add_argument("--k-folds",
+                        help="choose number of k folds, default is 20",
+                        type=int,
+                        default=20,
+                        required=False)
+    parser.add_argument("--model-size",
+                        help="Choose number from 0-2 where 0-small 1-medium 2-large",
+                        type=int,
+                        default=0,
+                        required=True)
+    parser.add_argument("--verbose",
+                        help="Choose number from 0-2",
+                        type=int,
+                        default=2,
                         required=True)
     return parser
 
