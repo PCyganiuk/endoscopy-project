@@ -13,6 +13,7 @@ class DatasetLoader:
     def __init__(self, args):
 
         self.ers_path = args.ers_path
+        self.galar_path = args.galar_path
         #self.ers_path = "/mnt/e/ERS/ers_jpg/"
         #self.galar_path = '/mnt/e/galar/'
 
@@ -92,31 +93,26 @@ class DatasetLoader:
     def prepare_galar(self):
         classes = Classes()
         base_dir = self.galar_path
-        labels_dir = os.path.join(base_dir, "labels")
+        labels_dir = os.path.join(base_dir, "Labels")
 
         class_to_idx = {cls: i for i, cls in enumerate(classes.unified_classes)}
         num_classes = len(class_to_idx)
 
         labeled_image_paths = []
         multi_hot_labels = []
-        unlabeled_image_paths = []
 
         for folder_id in range(1, 81):
             folder_path = os.path.join(base_dir, str(folder_id))
             label_path = os.path.join(labels_dir, f"{folder_id}.csv")
 
-            if not os.path.exists(label_path):
-                continue
-            if not os.path.exists(folder_path):
+            if not os.path.exists(label_path) or not os.path.exists(folder_path):
                 continue
 
             df = pd.read_csv(label_path, sep=",", low_memory=False)
 
-            binary_cols = [
-                c for c in df.columns
-                if c not in ["index", "section", "frame"]
-            ]
+            binary_cols = [c for c in df.columns if c not in ["index", "section", "frame"]]
 
+            labeled_set = set()
             for _, row in df.iterrows():
                 frame_number = int(row["frame"])
                 frame_file = f"frame_{frame_number:06d}.PNG"
@@ -144,35 +140,29 @@ class DatasetLoader:
 
                 labeled_image_paths.append(img_path)
                 multi_hot_labels.append(vec)
+                labeled_set.add(frame_file.lower())
 
-            all_imgs = [
-                f for f in os.listdir(folder_path)
-                if f.lower().endswith((".jpg", ".png"))
-            ]
-            labeled_imgs = set(f"frame_{int(fr):06d}.jpg" for fr in df["frame"])
-            unlabeled = [os.path.join(folder_path, f) for f in all_imgs if f not in labeled_imgs]
-            unlabeled_image_paths.extend(unlabeled)
+            # Process previously "unlabeled" frames, assign all-zero label
+            all_imgs = [f for f in os.listdir(folder_path) if f.lower().endswith((".jpg", ".png"))]
+            for img_file in all_imgs:
+                if img_file.lower() not in labeled_set:
+                    img_path = os.path.join(folder_path, img_file)
+                    labeled_image_paths.append(img_path)
+                    multi_hot_labels.append(np.zeros(num_classes, dtype=np.float32))
 
-        if len(multi_hot_labels) > 0:
-            multi_hot_labels = np.stack(multi_hot_labels)
-        else:
-            multi_hot_labels = np.zeros((0, num_classes), dtype=np.float32)
+        multi_hot_labels = np.stack(multi_hot_labels)
 
-        unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
-
-        output_path = f"data_summary/ers_dataset_summary.txt"
+        # Save dataset summary
+        output_path = f"data_summary/galar_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
                 label_str = " ".join(map(str, label_vec.astype(int)))
                 f.write(f"{path} {label_str}\n")
 
-            f.write("\n# Unlabeled images\n")
-            for path in unlabeled_image_paths:
-                f.write(f"{path}\n")
-
         print(f"Saved dataset summary to {output_path}")
 
-        return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
+        return labeled_image_paths, multi_hot_labels
+
     
     def split_labeled_by_patient_id(
         self,
@@ -221,7 +211,7 @@ class DatasetLoader:
             unlabeled_image_paths_filtered,
         )
 
-    def split_patients_kfold(self, labeled_image_paths: list[str], labels: np.array, unlabeled_image_paths: list[str], n_splits=20, seed=42):
+    def split_patients_kfold(self, labeled_image_paths: list[str], labels: np.array, unlabeled_image_paths: list[str] = None, n_splits=20, seed=42):
         def extract_patient_id(path):
             match = re.search(r"/(\d+)/", path)
             return match.group(1) if match else None
@@ -243,11 +233,15 @@ class DatasetLoader:
             labeled_test = np.array(labeled_image_paths)[test_mask].tolist()
             labels_test = labels[test_mask]
 
-            unlabeled_patient_ids = np.array([extract_patient_id(p) for p in unlabeled_image_paths])
-            unlabeled_mask = np.isin(unlabeled_patient_ids, train_patients)
-            unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
+            if unlabeled_image_paths is not None:
+                unlabeled_patient_ids = np.array([extract_patient_id(p) for p in unlabeled_image_paths])
+                unlabeled_mask = np.isin(unlabeled_patient_ids, train_patients)
+                unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
+            else:
+                unlabeled_filtered = []
 
             yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
+
 
 #loader = DatasetLoader()
 #labeled,labels,unlabeled = loader.prepare_ers()

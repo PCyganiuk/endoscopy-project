@@ -1,0 +1,2 @@
+epoch,accuracy,auc,loss,val_accuracy,val_auc,val_loss
+0,0.5976929664611816,0.9836379885673523,0.07189542800188065,NA,NA,NA

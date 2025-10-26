@@ -2,11 +2,6 @@ import argparse
 import os
 import sys
 
-import tensorflow as tf
-
-from tensorflow.keras import layers, models # type: ignore
-
-from src.dataset_loader import DatasetLoader
 from src.models import Models
 
 DEFAULT_TEST_SIZE = 0.2
@@ -112,7 +107,7 @@ def parse_args(args):
 def main(args):
     setup_argument_parser()
     args = parse_args(args)
-    training = Models(args).train()
+    Models(args).train()
 
 
 if __name__ == '__main__':
