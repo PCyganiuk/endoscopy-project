@@ -6,7 +6,7 @@
 
 # ps aux | grep python <- check if still running
 
-# tail -f output.log <- get the output to console
+# tail -f master_run.log <- get the output to console
 
 # kill <PID> <- kill if nessesary
 
@@ -14,7 +14,7 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..2}; do
+for type in {0..0}; do
   for size in {0..2}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
     log_file="logs/baseline_type${type}_size${size}_${timestamp}.log"
@@ -23,10 +23,9 @@ for type in {0..2}; do
     echo "Logging to ${log_file}"
 
     nohup python3 main.py \
-      --ers-path /mnt/e/ERS/ers_jpg/ \
-      --galar-path /mnt/e/galar/ \
+      --ers-path /local_storage/gwo/public/gastro/ers \
+      --galar-path /local_storage/gwo/public/gastro/galar \
       --type-num "${type}" \
-      --epochs 10 \
       --k-folds 20 \
       --model-size "${size}" \
       --verbose 2 \

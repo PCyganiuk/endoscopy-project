@@ -56,7 +56,7 @@ def setup_argument_parser():
                         help="Choose number of epochs",
                         type=int,
                         default=10,
-                        required=True)
+                        required=False)
     parser.add_argument("--k-folds",
                         help="choose number of k folds, default is 20",
                         type=int,

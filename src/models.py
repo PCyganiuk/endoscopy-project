@@ -13,7 +13,6 @@ class Models:
     def __init__(self, args):
         self.args = args
         self.mode = args.type_num
-        self.epochs = args.epochs
         self.k = args.k_folds
         self.model_size = args.model_size
         self.verbose = args.verbose
@@ -86,7 +85,6 @@ class Models:
             # --- supervised pre-training ---
             model.fit(
                 self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True), 
-                epochs=self.epochs, 
                 verbose=self.verbose, 
                 callbacks=[csv_logger]
                 )
@@ -109,8 +107,7 @@ class Models:
             #dataset_combined = tf.data.Dataset.from_tensor_slices((X_combined, Y_combined))
             #dataset_combined = dataset_combined.map(self.preprocess_with_padding).batch(8).shuffle(200)
             model.fit(
-                self.make_dataset(X_combined, Y_combined, shuffle=True),
-                epochs=self.epochs, 
+                self.make_dataset(X_combined, Y_combined, shuffle=True), 
                 verbose=self.verbose, 
                 callbacks=[csv_logger]
                 )
@@ -145,7 +142,8 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
-                epochs=self.epochs, verbose=self.verbose, callbacks=[csv_logger]
+                verbose=self.verbose, 
+                callbacks=[csv_logger]
             )
 
             preds = model.predict(self.make_dataset(ers_unlabeled),verbose=self.verbose)
@@ -158,8 +156,9 @@ class Models:
             Y_comb = np.concatenate([ers_labels_train, conf_labels])
 
             model.fit(
-                self.make_dataset(X_comb, Y_comb, shuffle=True),
-                epochs=self.epochs, verbose=self.verbose, callbacks=[csv_logger]
+                self.make_dataset(X_comb, Y_comb, shuffle=True), 
+                verbose=self.verbose, 
+                callbacks=[csv_logger]
             )
 
             res = model.evaluate(self.make_dataset(galar_images, galar_labels), verbose=self.verbose)
@@ -185,7 +184,8 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(galar_train, galar_labels_train, shuffle=True),
-                epochs=self.epochs, verbose=self.verbose, callbacks=[csv_logger]
+                verbose=self.verbose, 
+                callbacks=[csv_logger]
             )
 
             res = model.evaluate(self.make_dataset(ers_labeled_all, ers_labels_all), verbose=self.verbose)
