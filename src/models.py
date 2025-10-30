@@ -35,7 +35,7 @@ class Models:
                 pooling="avg"
             )
         elif self.model_size == 1:
-            base_model = tf.keras.applications.EfficientNetB0(
+            base_model = tf.keras.applications.DenseNet121(
                 include_top=False,
                 weights="imagenet",
                 input_shape=(224, 224, 3),
@@ -85,7 +85,8 @@ class Models:
             # --- supervised pre-training ---
             model.fit(
                 self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True), 
-                verbose=self.verbose, 
+                epochs=self.epochs,
+		verbose=self.verbose, 
                 callbacks=[csv_logger]
                 )
 
@@ -108,7 +109,8 @@ class Models:
             #dataset_combined = dataset_combined.map(self.preprocess_with_padding).batch(8).shuffle(200)
             model.fit(
                 self.make_dataset(X_combined, Y_combined, shuffle=True), 
-                verbose=self.verbose, 
+                epochs=self.epochs,
+		verbose=self.verbose, 
                 callbacks=[csv_logger]
                 )
 
@@ -142,7 +144,8 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
-                verbose=self.verbose, 
+                epochs=self.epochs,
+		verbose=self.verbose, 
                 callbacks=[csv_logger]
             )
 
@@ -157,7 +160,8 @@ class Models:
 
             model.fit(
                 self.make_dataset(X_comb, Y_comb, shuffle=True), 
-                verbose=self.verbose, 
+                epochs=self.epochs,
+		verbose=self.verbose, 
                 callbacks=[csv_logger]
             )
 
@@ -184,7 +188,8 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(galar_train, galar_labels_train, shuffle=True),
-                verbose=self.verbose, 
+                epochs=self.epochs,
+		verbose=self.verbose, 
                 callbacks=[csv_logger]
             )
 
@@ -224,12 +229,15 @@ class Models:
 
     def report_kfold(self, fold_results):
         fold_results = np.array(fold_results)
-        mean_loss, mean_auc, mean_acc = fold_results.mean(axis=0)
-        std_loss, std_auc, std_acc = fold_results.std(axis=0)
+        mean_loss, mean_acc, mean_prec, mean_rec, mean_auc = fold_results.mean(axis=0)
+        std_loss, std_acc, std_prec, std_rec, std_auc = fold_results.std(axis=0)
+
         print(f"\n===== {self.k}-Fold Cross-Validation Results =====")
-        print(f"Loss: {mean_loss:.4f} ± {std_loss:.4f}")
-        print(f"AUC:  {mean_auc:.4f} ± {std_auc:.4f}")
-        print(f"Acc:  {mean_acc:.4f} ± {std_acc:.4f}")
+        print(f"Loss:       {mean_loss:.4f} ± {std_loss:.4f}")
+        print(f"Accuracy:   {mean_acc:.4f} ± {std_acc:.4f}")
+        print(f"Precision:  {mean_prec:.4f} ± {std_prec:.4f}")
+        print(f"Recall:     {mean_rec:.4f} ± {std_rec:.4f}")
+        print(f"AUC:        {mean_auc:.4f} ± {std_auc:.4f}")
     
     def preprocess_with_padding(self, image_path, label=None):
         img = tf.io.read_file(image_path)

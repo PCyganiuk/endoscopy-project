@@ -14,8 +14,8 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..0}; do
-  for size in {0..2}; do
+for type in {0..2}; do
+  for size in {0..0}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
     log_file="logs/baseline_type${type}_size${size}_${timestamp}.log"
 
@@ -23,9 +23,10 @@ for type in {0..0}; do
     echo "Logging to ${log_file}"
 
     nohup python3 main.py \
-      --ers-path /local_storage/gwo/public/gastro/ers \
-      --galar-path /local_storage/gwo/public/gastro/galar \
+      --ers-path /local_storage/gwo/public/gastro/ers/ \
+      --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
       --type-num "${type}" \
+      --epochs 5 \
       --k-folds 20 \
       --model-size "${size}" \
       --verbose 2 \
