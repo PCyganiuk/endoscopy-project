@@ -4,7 +4,7 @@ import os
 import re
 
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedGroupKFold
 
 from src.classes import Classes
 
@@ -142,7 +142,6 @@ class DatasetLoader:
                 multi_hot_labels.append(vec)
                 labeled_set.add(frame_file.lower())
 
-            # Process previously "unlabeled" frames, assign all-zero label
             all_imgs = [f for f in os.listdir(folder_path) if f.lower().endswith((".jpg", ".png"))]
             for img_file in all_imgs:
                 if img_file.lower() not in labeled_set:
@@ -152,7 +151,6 @@ class DatasetLoader:
 
         multi_hot_labels = np.stack(multi_hot_labels)
 
-        # Save dataset summary
         output_path = f"data_summary/galar_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
@@ -219,9 +217,19 @@ class DatasetLoader:
         patient_ids = np.array([extract_patient_id(p) for p in labeled_image_paths])
         unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
 
-        kf = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        patient_labels = []
+        for pid in unique_patients:
+            mask = patient_ids == pid
+            patient_label_vec = (labels[mask].sum(axis=0) > 0).astype(int)
+            patient_labels.append(np.argmax(patient_label_vec))
 
-        for train_idx, test_idx in kf.split(unique_patients):
+        patient_labels = np.array(patient_labels)
+
+        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+
+        for fold, (train_idx, test_idx) in enumerate(
+            sgkf.split(unique_patients, patient_labels, groups=unique_patients)
+        ):
             train_patients = unique_patients[train_idx]
             test_patients = unique_patients[test_idx]
 
@@ -239,6 +247,11 @@ class DatasetLoader:
                 unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
             else:
                 unlabeled_filtered = []
+
+            print(
+                f"Fold {fold + 1}/{n_splits}: "
+                f"Train patients={len(train_patients)}, Test patients={len(test_patients)}"
+            )
 
             yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
 

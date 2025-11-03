@@ -14,6 +14,7 @@ class Models:
         self.args = args
         self.mode = args.type_num
         self.k = args.k_folds
+        self.epochs = args.epochs
         self.model_size = args.model_size
         self.verbose = args.verbose
 
@@ -54,7 +55,6 @@ class Models:
         num_classes = Classes().num_classes
         dataset_loader = DatasetLoader(self.args)
         self.ers_labeled_all, self.ers_labels_all, self.ers_unlabeled_all = dataset_loader.prepare_ers()
-        fold_results = []
 
         kf_generator = dataset_loader.split_patients_kfold(
             self.ers_labeled_all, 
@@ -63,7 +63,7 @@ class Models:
             self.k
             )
 
-        for fold, (ers_labeled_train, ers_labels_train, ers_labeled_test, ers_labels_test, ers_unlabeled) in enumerate(kf_generator, 1):
+        for fold, (ers_labeled_train, ers_labels_train, ers_labeled_test, ers_labels_test, _) in enumerate(kf_generator, 1):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             num_classes = Classes().num_classes
             os.makedirs("logs", exist_ok=True)
@@ -72,69 +72,31 @@ class Models:
             print(f"\n================ Fold {fold}/{self.k} ================")
             print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(ers_labeled_test)}")
 
-            #dataset_labeled_train = tf.data.Dataset.from_tensor_slices((ers_labeled_train, ers_labels_train))
-            #dataset_labeled_train = dataset_labeled_train.map(self.preprocess_with_padding).batch(8).shuffle(100)
-
-            #dataset_labeled_test = tf.data.Dataset.from_tensor_slices((ers_labeled_test, ers_labels_test))
-            #dataset_labeled_test = dataset_labeled_test.map(self.preprocess_with_padding).batch(8)
-
-            # --- define model ---
-
             model = self.build_model(num_classes)
 
-            # --- supervised pre-training ---
             model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True), 
+                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
+                validation_data=self.make_dataset(ers_labeled_test, ers_labels_test), 
                 epochs=self.epochs,
-		verbose=self.verbose, 
+		        verbose=self.verbose, 
                 callbacks=[csv_logger]
                 )
 
-            # --- pseudo-label generation ---
-            #dataset_unlabeled = tf.data.Dataset.from_tensor_slices(ers_unlabeled)
-            #dataset_unlabeled = dataset_unlabeled.map(self.preprocess_with_padding).batch(8)
-            preds = model.predict(self.make_dataset(ers_unlabeled),verbose=self.verbose)
-            #preds = model.predict(dataset_unlabeled, verbose=self.verbose)
-            pseudo_labels = (preds > 0.9).astype(np.float32)
-
-            mask_confident = np.max(preds, axis=1) > 0.9
-            ers_confident_images = np.array(ers_unlabeled)[mask_confident]
-            ers_confident_labels = pseudo_labels[mask_confident]
-
-            # --- retrain with pseudo-labeled data ---
-            X_combined = np.concatenate([ers_labeled_train, ers_confident_images])
-            Y_combined = np.concatenate([ers_labels_train, ers_confident_labels])
-
-            #dataset_combined = tf.data.Dataset.from_tensor_slices((X_combined, Y_combined))
-            #dataset_combined = dataset_combined.map(self.preprocess_with_padding).batch(8).shuffle(200)
-            model.fit(
-                self.make_dataset(X_combined, Y_combined, shuffle=True), 
-                epochs=self.epochs,
-		verbose=self.verbose, 
-                callbacks=[csv_logger]
-                )
-
-            # --- evaluate ---
-            results = model.evaluate(self.make_dataset(ers_labeled_test, ers_labels_test), verbose=self.verbose)
-            print(f"Fold {fold} | Loss: {results[0]:.4f} | AUC: {results[1]:.4f} | Acc: {results[2]:.4f}")
-            fold_results.append(results)
 
             save_path = f"weights/baseline_{self.model_size}_fold{fold}.h5"
             model.save(save_path)
             print(f"Saved {self.model_size} model for fold {fold} -> {save_path}")
 
-        self.report_kfold(fold_results)
 
     def train_ers_test_galar(self):
         num_classes = Classes().num_classes
         dataset_loader = DatasetLoader(self.args)
         ers_labeled_all, ers_labels_all, ers_unlabeled_all = dataset_loader.prepare_ers()
         galar_images, galar_labels = dataset_loader.prepare_galar()
-        fold_results = []
 
         kf_gen = dataset_loader.split_patients_kfold(ers_labeled_all, ers_labels_all, ers_unlabeled_all, self.k)
 
-        for fold, (ers_labeled_train, ers_labels_train, _, _, ers_unlabeled) in enumerate(kf_gen, 1):
+        for fold, (ers_labeled_train, ers_labels_train, _, _, _) in enumerate(kf_gen, 1):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             csv_logger = CSVLogger(f"logs/csv/ers2galar_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
 
@@ -144,40 +106,20 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
+                validation_data=self.make_dataset(galar_images, galar_labels),
                 epochs=self.epochs,
-		verbose=self.verbose, 
+		        verbose=self.verbose, 
                 callbacks=[csv_logger]
             )
-
-            preds = model.predict(self.make_dataset(ers_unlabeled),verbose=self.verbose)
-            pseudo_labels = (preds > 0.9).astype(np.float32)
-            mask_conf = np.max(preds, axis=1) > 0.9
-            conf_imgs = np.array(ers_unlabeled)[mask_conf]
-            conf_labels = pseudo_labels[mask_conf]
-
-            X_comb = np.concatenate([ers_labeled_train, conf_imgs])
-            Y_comb = np.concatenate([ers_labels_train, conf_labels])
-
-            model.fit(
-                self.make_dataset(X_comb, Y_comb, shuffle=True), 
-                epochs=self.epochs,
-		verbose=self.verbose, 
-                callbacks=[csv_logger]
-            )
-
-            res = model.evaluate(self.make_dataset(galar_images, galar_labels), verbose=self.verbose)
-            fold_results.append(res)
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/ers2galar_{self.model_size}_fold{fold}_{timestamp}.h5")
 
-        self.report_kfold(fold_results)
 
     def train_galar_test_ers(self):
         num_classes = Classes().num_classes
         dataset_loader = DatasetLoader(self.args)
         galar_images, galar_labels = dataset_loader.prepare_galar()
         ers_labeled_all, ers_labels_all, _ = dataset_loader.prepare_ers()
-        fold_results = []
 
         kf_gen = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
 
@@ -188,17 +130,13 @@ class Models:
             model = self.build_model(num_classes)
             model.fit(
                 self.make_dataset(galar_train, galar_labels_train, shuffle=True),
+                validation_data=self.make_dataset(ers_labeled_all, ers_labels_all),
                 epochs=self.epochs,
-		verbose=self.verbose, 
+		        verbose=self.verbose, 
                 callbacks=[csv_logger]
             )
-
-            res = model.evaluate(self.make_dataset(ers_labeled_all, ers_labels_all), verbose=self.verbose)
-            fold_results.append(res)
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/galar2ers_{self.model_size}_fold{fold}_{timestamp}.h5")
-
-        self.report_kfold(fold_results)
     
     def build_model(self, num_classes):
         base_model = self.get_backbone()
@@ -227,17 +165,6 @@ class Models:
             ds = ds.shuffle(100)
         return ds.batch(batch_size)
 
-    def report_kfold(self, fold_results):
-        fold_results = np.array(fold_results)
-        mean_loss, mean_acc, mean_prec, mean_rec, mean_auc = fold_results.mean(axis=0)
-        std_loss, std_acc, std_prec, std_rec, std_auc = fold_results.std(axis=0)
-
-        print(f"\n===== {self.k}-Fold Cross-Validation Results =====")
-        print(f"Loss:       {mean_loss:.4f} ± {std_loss:.4f}")
-        print(f"Accuracy:   {mean_acc:.4f} ± {std_acc:.4f}")
-        print(f"Precision:  {mean_prec:.4f} ± {std_prec:.4f}")
-        print(f"Recall:     {mean_rec:.4f} ± {std_rec:.4f}")
-        print(f"AUC:        {mean_auc:.4f} ± {std_auc:.4f}")
     
     def preprocess_with_padding(self, image_path, label=None):
         img = tf.io.read_file(image_path)

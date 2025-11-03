@@ -26,7 +26,7 @@ for type in {0..2}; do
       --ers-path /local_storage/gwo/public/gastro/ers/ \
       --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
       --type-num "${type}" \
-      --epochs 5 \
+      --epochs 15 \
       --k-folds 20 \
       --model-size "${size}" \
       --verbose 2 \
