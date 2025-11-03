@@ -2,14 +2,14 @@ import os
 from PIL import Image, UnidentifiedImageError
 import shutil
 
-input_folder = "/mnt/e/ERS/ers"
-output_folder = "/mnt/e/ERS/ers_jpg_test"
+input_folder = "/mnt/e/galar"
+output_folder = "/mnt/e/galar_jpg"
 
 def convert_png_to_jpg_preserve_structure(input_folder, output_folder):
     for root, dirs, files in os.walk(input_folder):
         rel_path = os.path.relpath(root, input_folder)
         if rel_path.split('/')[0].isdigit():
-            if int(rel_path.split('/')[0]) < 916:
+            if int(rel_path.split('/')[0]) <= 64:
                 continue
         if os.path.basename(root).lower() == "labels":
             rel_path = os.path.relpath(root, input_folder)

@@ -23,8 +23,8 @@ for type in {0..0}; do
     echo "Logging to ${log_file}"
 
     nohup python3 main.py \
-      --ers-path /local_storage/gwo/public/gastro/ers \
-      --galar-path /local_storage/gwo/public/gastro/galar \
+      --ers-path /local_storage/gwo/public/gastro/ers/ \
+      --galar-path /local_storage/gwo/public/gastro/galar/ \
       --type-num "${type}" \
       --k-folds 20 \
       --model-size "${size}" \
@@ -38,4 +38,4 @@ done
 
 echo "All trainings completed successfully!"
 
-# nohup python3 main.py --ers-path /mnt/e/ERS/ers_jpg/ --galar-path /mnt/e/galar/ --type-num 0 --epochs 1 --k-folds 2 --model-size 0 --verbose 2 > logs/baseline.log 2>&1 &
+# nohup python3 main.py --ers-path /mnt/e/ERS/ers_jpg/ --galar-path /mnt/e/galar/ --type-num 0 --epochs 1 --k-folds 2 --model-size 1 --verbose 2 > logs/baseline.log 2>&1 &
