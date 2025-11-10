@@ -115,7 +115,7 @@ class DatasetLoader:
             labeled_set = set()
             for _, row in df.iterrows():
                 frame_number = int(row["frame"])
-                frame_file = f"frame_{frame_number:06d}.PNG"
+                frame_file = f"frame_{frame_number:06d}.jpg"
                 img_path = os.path.join(folder_path, frame_file)
 
                 if not os.path.exists(img_path):

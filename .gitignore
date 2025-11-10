@@ -1,3 +1,4 @@
 /venv
 checkpoint.txt
 /src/__pycache__
+/data_summary
