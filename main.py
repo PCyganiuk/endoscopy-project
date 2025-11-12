@@ -48,7 +48,7 @@ def setup_argument_parser():
                         type=dir_path,
                         required=False)
     parser.add_argument("--type-num",
-                        help="Choose number from 0 to 5 to define which experiment to run",
+                        help="Choose number from 0 to 4 to define which experiment to run",
                         type=int,
                         default=0,
                         required=True)
@@ -67,6 +67,11 @@ def setup_argument_parser():
                         type=int,
                         default=0,
                         required=True)
+    parser.add_argument("--binary",
+                        help="Choose 1 if binary(healthy/unhealthy), choose 0 if multilabel",
+                        type=bool,
+                        default=0,
+                        required=False)
     parser.add_argument("--verbose",
                         help="Choose number from 0-2",
                         type=int,

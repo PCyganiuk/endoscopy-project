@@ -14,16 +14,16 @@ class DatasetLoader:
 
         self.ers_path = args.ers_path
         self.galar_path = args.galar_path
-        #self.ers_path = "/mnt/e/ERS/ers_jpg/"
-        #self.galar_path = '/mnt/e/galar/'
+        #self.ers_path = "/mnt/d/ERS/ers_jpg/"
+        #self.galar_path = '/mnt/e/galar_jpg/'
 
         self.train_size = args.train_size
         self.test_size = args.test_size
-
+        self.binary = args.binary
         self.type_num = args.type_num
 
     def prepare_ers(self):
-        classes = Classes()
+        classes = Classes(self.binary)
         base_dir = self.ers_path
         labels_path = f"{base_dir}labels.csv"
 
@@ -76,6 +76,22 @@ class DatasetLoader:
 
         unlabeled_image_paths = list(np.unique(unlabeled_image_paths))
 
+        if classes.binary:
+            unhealthy_indices = np.where(np.array(classes.unified_classes) != "healthy")[0]
+            healthy_idx = classes.unified_classes.index("healthy")
+
+            binary_labels = np.zeros((multi_hot_labels.shape[0], 2), dtype=np.float32)
+
+            has_unhealthy = (multi_hot_labels[:, unhealthy_indices].sum(axis=1) > 0).astype(np.float32)
+            has_healthy = multi_hot_labels[:, healthy_idx]
+
+            binary_labels[:, 0] = has_unhealthy
+            binary_labels[:, 1] = np.logical_and(has_healthy, np.logical_not(has_unhealthy)).astype(np.float32)
+
+            multi_hot_labels = binary_labels
+
+
+
         output_path = f"data_summary/ers_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
@@ -91,7 +107,7 @@ class DatasetLoader:
         return labeled_image_paths, multi_hot_labels, unlabeled_image_paths
     
     def prepare_galar(self):
-        classes = Classes()
+        classes = Classes(False)
         base_dir = self.galar_path
         labels_dir = os.path.join(base_dir, "Labels")
 
@@ -151,6 +167,17 @@ class DatasetLoader:
 
         multi_hot_labels = np.stack(multi_hot_labels)
 
+        if self.binary:
+            unhealthy = (multi_hot_labels[:, :16].sum(axis=1) > 0).astype(np.float32)
+            healthy = multi_hot_labels[:, 16].astype(np.float32)
+
+            healthy = np.logical_and(healthy, np.logical_not(unhealthy)).astype(np.float32)
+
+            multi_hot_labels = np.stack([unhealthy, healthy], axis=1).astype(np.float32)
+
+
+
+
         output_path = f"data_summary/galar_dataset_summary.txt"
         with open(output_path, "w") as f:
             for path, label_vec in zip(labeled_image_paths, multi_hot_labels):
@@ -181,7 +208,7 @@ class DatasetLoader:
         unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
         
         train_patients, test_patients = train_test_split(
-            unique_patients, test_size=test_size, random_state=random_state
+            unique_patients, test_size=test_size
         )
 
         train_mask = np.isin(patient_ids, train_patients)
@@ -257,5 +284,5 @@ class DatasetLoader:
 
 
 #loader = DatasetLoader()
-#labeled,labels,unlabeled = loader.prepare_ers()
-#loader.split_labeled_by_patient_id(labeled, labels, unlabeled)
+#labeled,labels = loader.prepare_galar()
+#loader.split_labeled_by_patient_id(labeled, labels)
