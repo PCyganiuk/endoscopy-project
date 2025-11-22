@@ -14,14 +14,14 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..3}; do
+for type in {0..4}; do
   for size in {0..0}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
     log_file="logs/baseline_type${type}_size${size}_${timestamp}.log"
 
     echo "Starting training: type-num=${type}, model-size=${size}"
     echo "Logging to ${log_file}"
-
+    export CUDA_VISIBLE_DEVICES="${type}"
     nohup python3 main.py \
       --ers-path /local_storage/gwo/public/gastro/ers/ \
       --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
@@ -31,7 +31,7 @@ for type in {0..3}; do
       --model-size "${size}" \
       --binary 1 \
       --verbose 2 \
-      > "${log_file}" 2>&1
+      > "${log_file}" 2>&1 &
 
     echo "Finished training: type-num=${type}, model-size=${size}"
     echo "---------------------------------------------"

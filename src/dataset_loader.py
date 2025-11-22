@@ -236,40 +236,44 @@ class DatasetLoader:
             unlabeled_image_paths_filtered,
         )
 
-    def split_patients_kfold(self, labeled_image_paths: list[str], labels: np.array, unlabeled_image_paths: list[str] = None, n_splits=20, seed=42):
+    def split_patients_kfold(
+        self,
+        labeled_image_paths: list[str],
+        labels: np.array,
+        unlabeled_image_paths: list[str] = None,
+        n_splits=20
+    ):
         def extract_patient_id(path):
             match = re.search(r"/(\d+)/", path)
             return match.group(1) if match else None
 
         patient_ids = np.array([extract_patient_id(p) for p in labeled_image_paths])
-        unique_patients = np.unique([pid for pid in patient_ids if pid is not None])
 
-        patient_labels = []
-        for pid in unique_patients:
-            mask = patient_ids == pid
-            patient_label_vec = (labels[mask].sum(axis=0) > 0).astype(int)
-            patient_labels.append(np.argmax(patient_label_vec))
+        y = labels.argmax(axis=1)
 
-        patient_labels = np.array(patient_labels)
+        X_dummy = np.zeros(len(y))
+        groups = patient_ids
 
-        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        sgkf = StratifiedGroupKFold(
+            n_splits=n_splits,
+            shuffle=True
+        )
 
         for fold, (train_idx, test_idx) in enumerate(
-            sgkf.split(unique_patients, patient_labels, groups=unique_patients)
+            sgkf.split(X_dummy, y, groups=groups)
         ):
-            train_patients = unique_patients[train_idx]
-            test_patients = unique_patients[test_idx]
-
-            train_mask = np.isin(patient_ids, train_patients)
-            test_mask = np.isin(patient_ids, test_patients)
+            train_mask = train_idx
+            test_mask = test_idx
 
             labeled_train = np.array(labeled_image_paths)[train_mask].tolist()
             labels_train = labels[train_mask]
+
             labeled_test = np.array(labeled_image_paths)[test_mask].tolist()
             labels_test = labels[test_mask]
 
             if unlabeled_image_paths is not None:
                 unlabeled_patient_ids = np.array([extract_patient_id(p) for p in unlabeled_image_paths])
+                train_patients = np.unique(groups[train_idx])
                 unlabeled_mask = np.isin(unlabeled_patient_ids, train_patients)
                 unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
             else:
@@ -277,10 +281,13 @@ class DatasetLoader:
 
             print(
                 f"Fold {fold + 1}/{n_splits}: "
-                f"Train patients={len(train_patients)}, Test patients={len(test_patients)}"
+                f"Train samples={len(train_idx)}, Test samples={len(test_idx)}, "
+                f"Train patients={len(np.unique(groups[train_idx]))}, "
+                f"Test patients={len(np.unique(groups[test_idx]))}"
             )
 
             yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
+
 
 
 #loader = DatasetLoader()

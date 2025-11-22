@@ -5,6 +5,8 @@ import os
 
 from tensorflow.keras import layers, models # type: ignore
 from src.classes import Classes
+from src.f1_score import F1Score
+from src.optimal_treshhold_callback import OptimalThresholdCallback
 from src.dataset_loader import DatasetLoader
 from tensorflow.keras.callbacks import CSVLogger # type: ignore
 
@@ -29,6 +31,8 @@ class Models:
             self.train_galar_test_ers() # train on galar test on ers
         elif self.mode == 3:
             self.train_galar_test_galar() # train on galar test on galar
+        elif self.mode == 4:
+            self.train_ersXgalar_test_ersORgalar() # train on ers x galar test on ers and galar separetely
 
     def get_backbone(self):
         if self.model_size == 0:
@@ -75,14 +79,17 @@ class Models:
             print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(ers_labeled_test)}")
 
             model = self.build_model(num_classes)
-
+            val_ds = self.make_dataset(ers_labeled_test, ers_labels_test, val=True)
             model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
-                validation_data=self.make_dataset(ers_labeled_test, ers_labels_test), 
+                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False),
+                validation_data=val_ds, 
                 epochs=self.epochs,
 		        verbose=self.verbose, 
-                callbacks=[csv_logger]
-                )
+                callbacks=[
+                    OptimalThresholdCallback(val_ds, name="val"),
+                    csv_logger
+                ]
+            )
 
 
             save_path = f"weights/baseline_{self.model_size}_fold{fold}.h5"
@@ -106,12 +113,16 @@ class Models:
             print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(galar_images)}")
 
             model = self.build_model(num_classes)
+            val_ds = self.make_dataset(galar_images, galar_labels, val=True)
             model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True),
-                validation_data=self.make_dataset(galar_images, galar_labels),
+                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False),
+                validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
-                callbacks=[csv_logger]
+                callbacks=[
+                           OptimalThresholdCallback(val_ds),
+                           csv_logger,
+                ]
             )
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/ers2galar_{self.model_size}_fold{fold}_{timestamp}.h5")
@@ -130,12 +141,16 @@ class Models:
             csv_logger = CSVLogger(f"logs/csv/galar2ers_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
 
             model = self.build_model(num_classes)
+            val_ds = self.make_dataset(ers_labeled_all, ers_labels_all, val=True)
             model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True),
-                validation_data=self.make_dataset(ers_labeled_all, ers_labels_all),
+                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False),
+                validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
-                callbacks=[csv_logger]
+                callbacks=[
+                           OptimalThresholdCallback(val_ds),
+                           csv_logger
+                           ]
             )
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/galar2ers_{self.model_size}_fold{fold}_{timestamp}.h5")
@@ -152,21 +167,70 @@ class Models:
             csv_logger = CSVLogger(f"logs/csv/galar2galar_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
 
             model = self.build_model(num_classes)
+            val_ds = self.make_dataset(galar_test, galar_labels_test, val=True)
             model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True),
-                validation_data=self.make_dataset(galar_test, galar_labels_test),
+                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False),
+                validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
-                callbacks=[csv_logger]
+                callbacks=[
+                           OptimalThresholdCallback(val_ds),
+                           csv_logger
+                          ]
             )
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/galar2galar_{self.model_size}_fold{fold}_{timestamp}.h5")
+        
+    def train_ersXgalar_test_ersORgalar(self):
+        num_classes = Classes(self.binary).num_classes
+        dataset_loader = DatasetLoader(self.args)
+
+        galar_images, galar_labels = dataset_loader.prepare_galar()
+        ers_images, ers_labels, _ = dataset_loader.prepare_ers()
+
+        kf_gen_ers = dataset_loader.split_patients_kfold(ers_images, ers_labels, None, self.k)
+        kf_gen_galar = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
+
+        for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
+                (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            os.makedirs("logs/csv", exist_ok=True)
+            csv_logger = CSVLogger(
+                f"logs/csv/ersXgalar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.csv",
+                append=True
+            )
+
+            train_images = np.concatenate([ers_train, galar_train])
+            train_labels = np.concatenate([ers_labels_train, galar_labels_train])
+
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True)
+
+            model = self.build_model(num_classes)
+
+            model.fit(
+                self.make_dataset(train_images, train_labels, shuffle=True, val=False),
+                validation_data=val_ds_ers,
+                epochs=self.epochs,
+                verbose=self.verbose,
+                callbacks=[
+                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    csv_logger
+                ]
+            )
+
+            os.makedirs("weights", exist_ok=True)
+            model.save(f"weights/ersXgalar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
+
+
     
     def build_model(self, num_classes):
         base_model = self.get_backbone()
         if num_classes == 2:
             activation = "softmax"
-            loss = "categorical_crossentropy"
+            loss = tf.keras.losses.CategoricalCrossentropy()
         else:
             activation = "sigmoid"
             loss = "binary_crossentropy"
@@ -175,53 +239,69 @@ class Models:
             base_model,
             layers.Dense(num_classes, activation=activation)
         ])
-        optimizer = tf.keras.optimizers.Adam(learning_rate=1.6e-3) #1.6e-3
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
         model.compile(
             optimizer=optimizer,
             loss=loss,
             metrics=[
-                tf.keras.metrics.BinaryAccuracy(name="binary_accuracy"),
+                tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
                 tf.keras.metrics.Precision(name="precision"),
-                tf.keras.metrics.Recall(name="recall"),
-                tf.keras.metrics.AUC(name="auc")
+                tf.keras.metrics.Recall(name="sensitivity", class_id=1),
+                tf.keras.metrics.Recall(name="specificity", class_id=0),
+                tf.keras.metrics.AUC(name="auc"),
+                F1Score(name="f1")
             ]
         )
         return model
     
-    def make_dataset(self, images, labels=None, shuffle=False, batch_size=128): # 128
+    def make_dataset(self, images, labels=None, shuffle=False, batch_size=32, val=False):
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
         if labels is not None:
-            ds = ds.map(self.preprocess_with_padding)
+            if val:
+                ds = ds.map(self.preprocess_val)
+            else:
+                ds = ds.map(self.preprocess_with_padding)
         else:
-            ds = ds.map(lambda x: self.preprocess_with_padding(x))
-        if shuffle:
-            ds = ds.shuffle(100)
+            if val:
+                ds = ds.map(lambda x: self.preprocess_val(x))
+            else:
+                ds = ds.map(lambda x: self.preprocess_with_padding(x))
+        #if shuffle:
+        #    ds = ds.shuffle(100)
         return ds.batch(batch_size)
 
     
     def preprocess_with_padding(self, image_path, label=None):
-        # Load image
         img = tf.io.read_file(image_path)
         img = tf.image.decode_jpeg(img, channels=3)
 
-        # Resize to 224x224 with padding
         img = tf.image.resize_with_pad(img, 224, 224)
         
-        # Convert to float32 and scale to [0,1]
         img = tf.cast(img, tf.float32) / 255.0
 
-        # Normalize to [-1,1] for pretrained models
         img = (img - 0.5) * 2.0
 
-        # Data augmentation to reduce domain gap
-        img = tf.image.random_brightness(img, max_delta=0.2)    # random brightness
-        img = tf.image.random_contrast(img, lower=0.8, upper=1.2)  # random contrast
-        img = tf.image.random_saturation(img, lower=0.8, upper=1.2) # random saturation
-        img = tf.image.random_hue(img, max_delta=0.05)          # small hue shift
+        img = tf.image.random_brightness(img, max_delta=0.2)
+        img = tf.image.random_contrast(img, lower=0.8, upper=1.2)
+        img = tf.image.random_saturation(img, lower=0.8, upper=1.2)
+        img = tf.image.random_hue(img, max_delta=0.05)
 
-        # Optional: spatial augmentation
         img = tf.image.random_flip_left_right(img)
         img = tf.image.random_flip_up_down(img)
+
+        if label is None:
+            return img
+        return img, label
+    
+    def preprocess_val(self, image_path, label=None):
+        img = tf.io.read_file(image_path)
+        img = tf.image.decode_jpeg(img, channels=3)
+
+        img = tf.image.resize_with_pad(img, 224, 224)
+        
+        img = tf.cast(img, tf.float32) / 255.0
+
+        img = (img - 0.5) * 2.0
 
         if label is None:
             return img

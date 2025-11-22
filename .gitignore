@@ -3,3 +3,4 @@ checkpoint.txt
 /src/__pycache__
 /data_summary
 fold_metrics.png
+.vscode
