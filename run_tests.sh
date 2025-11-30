@@ -14,17 +14,18 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..4}; do
+for type in {0..3}; do
   for size in {0..0}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
-    log_file="logs/baseline_type${type}_size${size}_${timestamp}.log"
+    log_file="logs/test_type${type}_size${size}_${timestamp}_fisheye.log"
 
     echo "Starting training: type-num=${type}, model-size=${size}"
     echo "Logging to ${log_file}"
-    export CUDA_VISIBLE_DEVICES="${type}"
+    #export CUDA_VISIBLE_DEVICES="${type}"
+    export CUDA_VISIBLE_DEVICES="0,1,2,3"
     nohup python3 main.py \
-      --ers-path /local_storage/gwo/public/gastro/ers/ \
-      --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
+      --ers-path /local_storage/common/s207254/ers_jpg/ \
+      --galar-path /local_storage/common/s207254/galar_jpg/ \
       --type-num "${type}" \
       --epochs 10 \
       --k-folds 20 \
@@ -32,7 +33,7 @@ for type in {0..4}; do
       --binary 1 \
       --verbose 2 \
       --fisheye 1 \
-      > "${log_file}" 2>&1 &
+      > "${log_file}" 2>&1
 
     echo "Finished training: type-num=${type}, model-size=${size}"
     echo "---------------------------------------------"
@@ -41,4 +42,4 @@ done
 
 echo "All trainings completed successfully!"
 
-# nohup python3 main.py --ers-path /mnt/d/ERS/ers_jpg/ --galar-path /mnt/e/galar_jpg/ --type-num 0 --epochs 1 --k-folds 2 --model-size 0 --binary 1 --verbose 2 > logs/baseline.log 2>&1 &
+# nohup python3 main.py --ers-path /mnt/d/ERS/ers_jpg/ --galar-path /mnt/e/galar_jpg/ --type-num 0 --epochs 1 --k-folds 2 --model-size 0 --binary 1 --verbose 2 --fisheye 1 > logs/baseline.log 2>&1 &

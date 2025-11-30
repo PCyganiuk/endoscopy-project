@@ -24,15 +24,27 @@ class Models:
 
     def train(self):
 
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+
+        self.strategy = tf.distribute.MirroredStrategy(
+            devices=["/gpu:0"]
+        )
+
+        print("Using GPUs:", self.strategy.num_replicas_in_sync)
+
         if self.mode == 0:
-            self.baseline() # train on ers test on ers
+            #self.baseline() # train on ers test on ers
+            self.train_ers_test_ersORgalar()
         elif self.mode == 1:
-            self.train_ers_test_galar() # train on ers test on galar
+            #self.train_ers_test_galar() # train on ers test on galar
+            self.train_galar_test_ersORgalar()
+        #elif self.mode == 2:
+        #    self.train_galar_test_ers() # train on galar test on ers
+        #elif self.mode == 3:
+        #    self.train_galar_test_galar() # train on galar test on galar
         elif self.mode == 2:
-            self.train_galar_test_ers() # train on galar test on ers
-        elif self.mode == 3:
-            self.train_galar_test_galar() # train on galar test on galar
-        elif self.mode == 4:
             self.train_ersXgalar_test_ersORgalar() # train on ers x galar test on ers and galar separetely
 
     def get_backbone(self):
@@ -234,37 +246,141 @@ class Models:
             os.makedirs("weights", exist_ok=True)
             model.save(f"weights/ersXgalar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
 
+    def train_ers_test_ersORgalar(self):
+        num_classes = Classes(self.binary).num_classes
+        dataset_loader = DatasetLoader(self.args)
 
+        galar_images, galar_labels = dataset_loader.prepare_galar()
+        ers_images, ers_labels, _ = dataset_loader.prepare_ers()
+
+        kf_gen_ers = dataset_loader.split_patients_kfold(ers_images, ers_labels, None, self.k)
+        kf_gen_galar = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
+
+        for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
+                (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            os.makedirs("logs/csv", exist_ok=True)
+            csv_logger = CSVLogger(
+                f"logs/csv/ers_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
+                append=True
+            )
+
+            train_images_ers = ers_train
+            train_labels_ers = ers_labels_train
+            train_images_galar = galar_train
+            train_labels_galar = galar_labels_train
+
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+
+            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+            train_ds = train_ds_ers
+            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
+
+            val_ds_galar = val_ds_galar.concatenate(train_ds_galar)
+            
+            model = self.build_model(num_classes)
+
+            model.fit(
+                train_ds,
+                validation_data=val_ds_ers,
+                epochs=self.epochs,
+                verbose=self.verbose,
+                callbacks=[
+                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    csv_logger
+                ]
+            )
+
+            os.makedirs("weights", exist_ok=True)
+            model.save(f"weights/ers_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
+
+    def train_galar_test_ersORgalar(self):
+        num_classes = Classes(self.binary).num_classes
+        dataset_loader = DatasetLoader(self.args)
+
+        galar_images, galar_labels = dataset_loader.prepare_galar()
+        ers_images, ers_labels, _ = dataset_loader.prepare_ers()
+
+        kf_gen_ers = dataset_loader.split_patients_kfold(ers_images, ers_labels, None, self.k)
+        kf_gen_galar = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
+
+        for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
+                (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            os.makedirs("logs/csv", exist_ok=True)
+            csv_logger = CSVLogger(
+                f"logs/csv/galar_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
+                append=True
+            )
+
+            train_images_ers = ers_train
+            train_labels_ers = ers_labels_train
+            train_images_galar = galar_train
+            train_labels_galar = galar_labels_train
+
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+
+            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+
+            train_ds = train_ds_galar
+            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
+            val_ds_ers = val_ds_ers.concatenate(train_ds_ers)
+            model = self.build_model(num_classes)
+
+            model.fit(
+                train_ds,
+                validation_data=val_ds_ers,
+                epochs=self.epochs,
+                verbose=self.verbose,
+                callbacks=[
+                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    csv_logger
+                ]
+            )
+
+            os.makedirs("weights", exist_ok=True)
+            model.save(f"weights/galar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
     
     def build_model(self, num_classes):
-        base_model = self.get_backbone()
-        if num_classes == 2:
-            activation = "softmax"
-            loss = tf.keras.losses.CategoricalCrossentropy()
-        else:
-            activation = "sigmoid"
-            loss = "binary_crossentropy"
+        with self.strategy.scope():
+            base_model = self.get_backbone()
+            if num_classes == 2:
+                activation = "softmax"
+                loss = tf.keras.losses.CategoricalCrossentropy()
+            else:
+                activation = "sigmoid"
+                loss = "binary_crossentropy"
 
-        model = models.Sequential([
-            base_model,
-            layers.Dense(num_classes, activation=activation)
-        ])
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-        model.compile(
-            optimizer=optimizer,
-            loss=loss,
-            metrics=[
-                tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
-                tf.keras.metrics.Precision(name="precision"),
-                tf.keras.metrics.Recall(name="sensitivity", class_id=1),
-                tf.keras.metrics.Recall(name="specificity", class_id=0),
-                tf.keras.metrics.AUC(name="auc"),
-                F1Score(name="f1")
-            ]
-        )
-        return model
+            model = models.Sequential([
+                base_model,
+                layers.Dense(num_classes, activation=activation)
+            ])
+            optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+            model.compile(
+                optimizer=optimizer,
+                loss=loss,
+                metrics=[
+                    tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
+                    tf.keras.metrics.Precision(name="precision"),
+                    tf.keras.metrics.Recall(name="sensitivity", class_id=1),
+                    tf.keras.metrics.Recall(name="specificity", class_id=0),
+                    tf.keras.metrics.AUC(name="auc"),
+                    F1Score(name="f1")
+                ]
+            )
+            return model
     
-    def make_dataset(self, images, labels=None, shuffle=False, batch_size=32, val=False, ers=False):
+    def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False):
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
         if labels is not None:
             if val:
@@ -276,7 +392,7 @@ class Models:
                 ds = ds.map(lambda x: self.preprocess_val(x, ers=ers))
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers))
-        return ds.batch(batch_size)
+        return ds.batch(32 * self.strategy.num_replicas_in_sync)
 
     
     def preprocess_with_padding(self, image_path, label=None, ers=False):
