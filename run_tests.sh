@@ -31,6 +31,7 @@ for type in {0..4}; do
       --model-size "${size}" \
       --binary 1 \
       --verbose 2 \
+      --fisheye 1 \
       > "${log_file}" 2>&1 &
 
     echo "Finished training: type-num=${type}, model-size=${size}"

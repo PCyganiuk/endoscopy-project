@@ -130,6 +130,9 @@ class DatasetLoader:
 
             labeled_set = set()
             for _, row in df.iterrows():
+                if str(row.get("section", "")).lower() in ["mouth", "esophagus"]:
+                    continue
+
                 frame_number = int(row["frame"])
                 frame_file = f"frame_{frame_number:06d}.jpg"
                 img_path = os.path.join(folder_path, frame_file)
@@ -186,6 +189,22 @@ class DatasetLoader:
 
         print(f"Saved dataset summary to {output_path}")
 
+        return labeled_image_paths, multi_hot_labels
+    
+    def prepare_kvasir(self):
+        classes = Classes(False)
+        labeled_image_paths = []
+        multi_hot_labels = []
+        for class_name, label in classes.kvasir_label_map.items():
+            class_path = os.path.join(self.kvasir_path, class_name)
+            if not os.path.exists(class_path):
+                continue
+            for fname in os.listdir(class_path):
+                if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    file_path = os.path.join(class_path, fname)
+                    labeled_image_paths.append(file_path)
+                    multi_hot_labels.append(label)
+        
         return labeled_image_paths, multi_hot_labels
 
     

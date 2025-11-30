@@ -77,6 +77,11 @@ def setup_argument_parser():
                         type=int,
                         default=2,
                         required=True)
+    parser.add_argument("--fisheye",
+                        help="Choose number from 0-2",
+                        type=bool,
+                        default=0,
+                        required=True)
     return parser
 
 def parse_args(args):

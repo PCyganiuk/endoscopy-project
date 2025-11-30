@@ -121,4 +121,13 @@ class Classes:
                 "celiac", "cancer", "lymphangioectasis", "other", "healthy"
             ]
 
+            self.kvasir_label_map = {
+                "Esophagitis": [1, 0],
+                "Polyps": [1, 0],
+                "Ulcerative-colitis": [1, 0],
+                "Normal-cecum": [0, 1],
+                "Normal-pylorus": [0, 1],
+                "Normal-z-line": [0, 1]
+            }
+
         self.num_classes = len(self.unified_classes)

@@ -20,6 +20,7 @@ class Models:
         self.model_size = args.model_size
         self.binary = args.binary
         self.verbose = args.verbose
+        self.fisheye=args.fisheye
 
     def train(self):
 
@@ -79,9 +80,9 @@ class Models:
             print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(ers_labeled_test)}")
 
             model = self.build_model(num_classes)
-            val_ds = self.make_dataset(ers_labeled_test, ers_labels_test, val=True)
+            val_ds = self.make_dataset(ers_labeled_test, ers_labels_test, val=True,ers=self.fisheye)
             model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False),
+                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False, ers=self.fisheye),
                 validation_data=val_ds, 
                 epochs=self.epochs,
 		        verbose=self.verbose, 
@@ -107,15 +108,15 @@ class Models:
 
         for fold, (ers_labeled_train, ers_labels_train, _, _, _) in enumerate(kf_gen, 1):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/ers2galar_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
+            csv_logger = CSVLogger(f"logs/csv/ers2galar_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
 
             print(f"\n================ Fold {fold}/{self.k} ================")
             print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(galar_images)}")
 
             model = self.build_model(num_classes)
-            val_ds = self.make_dataset(galar_images, galar_labels, val=True)
+            val_ds = self.make_dataset(galar_images, galar_labels, val=True, ers=False)
             model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False),
+                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False,ers=self.fisheye),
                 validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
@@ -125,7 +126,7 @@ class Models:
                 ]
             )
             os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/ers2galar_{self.model_size}_fold{fold}_{timestamp}.h5")
+            model.save(f"weights/ers2galar_{self.model_size}_fold_{fold}_{timestamp}.h5")
 
 
     def train_galar_test_ers(self):
@@ -138,12 +139,12 @@ class Models:
 
         for fold, (galar_train, galar_labels_train, galar_test, galar_labels_test, _) in enumerate(kf_gen, 1):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/galar2ers_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
+            csv_logger = CSVLogger(f"logs/csv/galar2ers_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
 
             model = self.build_model(num_classes)
-            val_ds = self.make_dataset(ers_labeled_all, ers_labels_all, val=True)
+            val_ds = self.make_dataset(ers_labeled_all, ers_labels_all, val=True,ers=self.fisheye)
             model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False),
+                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False, ers=False),
                 validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
@@ -153,7 +154,7 @@ class Models:
                            ]
             )
             os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/galar2ers_{self.model_size}_fold{fold}_{timestamp}.h5")
+            model.save(f"weights/galar2ers_{self.model_size}_fold_{fold}_{timestamp}.h5")
 
     def train_galar_test_galar(self):
         num_classes = Classes(self.binary).num_classes
@@ -164,12 +165,12 @@ class Models:
 
         for fold, (galar_train, galar_labels_train, galar_test, galar_labels_test, _) in enumerate(kf_gen, 1):
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/galar2galar_{self.model_size}_fold{fold}_{timestamp}.csv", append=True)
+            csv_logger = CSVLogger(f"logs/csv/galar2galar_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
 
             model = self.build_model(num_classes)
-            val_ds = self.make_dataset(galar_test, galar_labels_test, val=True)
+            val_ds = self.make_dataset(galar_test, galar_labels_test, val=True,ers=False)
             model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False),
+                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False, ers=False),
                 validation_data=val_ds,
                 epochs=self.epochs,
 		        verbose=self.verbose, 
@@ -197,20 +198,29 @@ class Models:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
             csv_logger = CSVLogger(
-                f"logs/csv/ersXgalar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.csv",
+                f"logs/csv/ersXgalar_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
                 append=True
             )
 
-            train_images = np.concatenate([ers_train, galar_train])
-            train_labels = np.concatenate([ers_labels_train, galar_labels_train])
+            train_images_ers = ers_train
+            train_labels_ers = ers_labels_train
+            train_images_galar = galar_train
+            train_labels_galar = galar_labels_train
 
-            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True)
-            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True)
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+
+            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+
+            train_ds = train_ds_ers.concatenate(train_ds_galar)
+            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
 
             model = self.build_model(num_classes)
 
             model.fit(
-                self.make_dataset(train_images, train_labels, shuffle=True, val=False),
+                train_ds,
                 validation_data=val_ds_ers,
                 epochs=self.epochs,
                 verbose=self.verbose,
@@ -254,30 +264,30 @@ class Models:
         )
         return model
     
-    def make_dataset(self, images, labels=None, shuffle=False, batch_size=32, val=False):
+    def make_dataset(self, images, labels=None, shuffle=False, batch_size=32, val=False, ers=False):
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
         if labels is not None:
             if val:
-                ds = ds.map(self.preprocess_val)
+                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers))
             else:
-                ds = ds.map(self.preprocess_with_padding)
+                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers))
         else:
             if val:
-                ds = ds.map(lambda x: self.preprocess_val(x))
+                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers))
             else:
-                ds = ds.map(lambda x: self.preprocess_with_padding(x))
-        #if shuffle:
-        #    ds = ds.shuffle(100)
+                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers))
         return ds.batch(batch_size)
 
     
-    def preprocess_with_padding(self, image_path, label=None):
+    def preprocess_with_padding(self, image_path, label=None, ers=False):
         img = tf.io.read_file(image_path)
         img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.convert_image_dtype(img, tf.float32)
+
+        if ers:
+            img = self.fisheye_tf(img, zoom_factor=1.13)
 
         img = tf.image.resize_with_pad(img, 224, 224)
-        
-        img = tf.cast(img, tf.float32) / 255.0
 
         img = (img - 0.5) * 2.0
 
@@ -293,17 +303,68 @@ class Models:
             return img
         return img, label
     
-    def preprocess_val(self, image_path, label=None):
+    def preprocess_val(self, image_path, label=None, ers=False):
         img = tf.io.read_file(image_path)
         img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.convert_image_dtype(img, tf.float32)
+
+        if ers:
+            img = self.fisheye_tf(img, zoom_factor=1.13)
 
         img = tf.image.resize_with_pad(img, 224, 224)
-        
-        img = tf.cast(img, tf.float32) / 255.0
 
         img = (img - 0.5) * 2.0
 
         if label is None:
             return img
         return img, label
-    
+
+    def fisheye_tf(self, image, zoom_factor=1.0):
+        """
+        Applies a fisheye/capsule-style effect to a [H, W, 3] tensor image.
+        image: float32 tensor [0,1] or [-1,1] (we will normalize inside)
+        zoom_factor: float, zoom in/out
+        Returns: [H, W, 3] tensor
+        """
+        img_shape = tf.shape(image)
+        H, W = img_shape[0], img_shape[1]
+
+        y, x = tf.meshgrid(tf.range(H), tf.range(W), indexing='ij')
+        y = tf.cast(y, tf.float32)
+        x = tf.cast(x, tf.float32)
+
+        cx = W / 2
+        cy = H / 2
+        nx = (x - cx) / cx
+        ny = (y - cy) / cy
+
+        r = tf.sqrt(nx**2 + ny**2)
+        theta = tf.atan2(ny, nx)
+
+        k1 = -0.4
+        k2 = 0.1
+        r_distorted = r * (1 + k1 * r**2 + k2 * r**4)
+
+        x_new = r_distorted * tf.cos(theta)
+        y_new = r_distorted * tf.sin(theta)
+
+        x_new /= zoom_factor
+        y_new /= zoom_factor
+
+        x_new = (x_new + 1) * cx
+        y_new = (y_new + 1) * cy
+
+        coords = tf.stack([y_new, x_new], axis=-1)
+
+        coords = tf.clip_by_value(coords, 0, tf.cast(tf.stack([H-1.0, W-1.0]), tf.float32))
+
+        fisheye_img = tf.expand_dims(image, 0)
+        fisheye_img = tf.reshape(tf.image.resize(fisheye_img, [H, W]), [H, W, 3])
+
+        mask_radius = 0.95
+        r_mask = tf.sqrt(nx**2 + ny**2)
+        mask = tf.cast(r_mask <= mask_radius, tf.float32)
+        mask = tf.expand_dims(mask, -1)
+        fisheye_img = fisheye_img * mask
+
+        return fisheye_img
