@@ -29,7 +29,7 @@ class Models:
             tf.config.experimental.set_memory_growth(gpu, True)
 
         self.strategy = tf.distribute.MirroredStrategy(
-            devices=["/gpu:0"]
+            devices=["/gpu:0","/gpu:1","/gpu:2","/gpu:3"]
         )
 
         print("Using GPUs:", self.strategy.num_replicas_in_sync)
