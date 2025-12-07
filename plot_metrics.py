@@ -3,22 +3,22 @@ import matplotlib.pyplot as plt
 import glob
 import os
 
-LOG_DIR = "/mnt/e/logs-29-11-25/logs/csv"
+LOG_DIR = "/mnt/e/logs-07-12-25/csv"
 
 OUTPUT_FILES = [
-    "plots/baseline_metrics.png",
-    "plots/ers2galar_metrics.png",
-    "plots/galar2galar_metrics.png",
-    "plots/galar2ers_metrics.png",
-    "plots/ersXgalar_test_ersORgalar_metrics.png",
+    "plots/ers_test_ersORgalar.png",
+    "plots/ersXgalar_test_ersORgalar.png",
+    "plots/galar_test_ersORgalar.png",
+    #"plots/galar2ers_metrics.png",
+    #"plots/ersXgalar_test_ersORgalar_metrics.png",
 ]
 
 csv_files_t = [
-    sorted(glob.glob(os.path.join(LOG_DIR, "baseline_training_log_model_0_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "ers2galar_0_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "galar2galar_0_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "galar2ers_0_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "ers_test_ersORgalar_0_fold_*.csv"))),
     sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_0_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "galar_test_ersORgalar_0_fold_*.csv"))),
+    #sorted(glob.glob(os.path.join(LOG_DIR, "galar2ers_0_fold_*.csv"))),
+    #sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_0_fold_*.csv"))),
 ]
 
 for csv_files, OUTPUT_FILE in zip(csv_files_t, OUTPUT_FILES):
@@ -51,6 +51,7 @@ for csv_files, OUTPUT_FILE in zip(csv_files_t, OUTPUT_FILES):
         ax.set_xlabel("Epoch")
         ax.set_ylabel(metric)
         # Each plot uses its own scale (we removed ax.set_ylim(0,1))
+        ax.set_ylim(0,1)
         ax.legend()
         ax.grid(True)
 

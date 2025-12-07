@@ -275,7 +275,7 @@ class DatasetLoader:
 
         sgkf = StratifiedGroupKFold(
             n_splits=n_splits,
-            shuffle=True, random_state=14
+            shuffle=True
         )
 
         for fold, (train_idx, test_idx) in enumerate(

@@ -249,8 +249,6 @@ class Models:
                 ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=4,)
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=4,)
-        if val:
-            ds = ds.cache(filename=f"/local_storage/gwo/public/gastro/galar/cache/cache_val_{'ers' if ers else 'galar'}_fold{fold}.tf-data")
         ds = ds.batch(512)
         ds = ds.prefetch(AUTOTUNE)
         return ds
