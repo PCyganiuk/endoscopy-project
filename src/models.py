@@ -6,7 +6,7 @@ import os
 from tensorflow.keras import layers, models # type: ignore
 from src.classes import Classes
 from src.f1_score import F1Score
-from src.optimal_treshhold_callback import OptimalThresholdCallback
+from src.validation_metrics_callback import ValidationMetricsCallback
 from src.dataset_loader import DatasetLoader
 from tensorflow.keras.callbacks import CSVLogger # type: ignore
 
@@ -26,16 +26,11 @@ class Models:
         os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
         os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
         os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
         if self.mode == 0:
-            #self.baseline() # train on ers test on ers
             self.train_ers_test_ersORgalar()
         elif self.mode == 1:
-            #self.train_ers_test_galar() # train on ers test on galar
             self.train_galar_test_ersORgalar()
-        #elif self.mode == 2:
-        #    self.train_galar_test_ers() # train on galar test on ers
-        #elif self.mode == 3:
-        #    self.train_galar_test_galar() # train on galar test on galar
         elif self.mode == 2:
             self.train_ersXgalar_test_ersORgalar() # train on ers x galar test on ers and galar separetely
 
@@ -62,129 +57,6 @@ class Models:
                 pooling="avg"
             )
         return base_model
-
-    def baseline(self):
-        num_classes = Classes(self.binary).num_classes
-        dataset_loader = DatasetLoader(self.args)
-        self.ers_labeled_all, self.ers_labels_all, self.ers_unlabeled_all = dataset_loader.prepare_ers()
-
-        kf_generator = dataset_loader.split_patients_kfold(
-            self.ers_labeled_all, 
-            self.ers_labels_all, 
-            self.ers_unlabeled_all, 
-            self.k
-            )
-
-        for fold, (ers_labeled_train, ers_labels_train, ers_labeled_test, ers_labels_test, _) in enumerate(kf_generator, 1):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            os.makedirs("logs", exist_ok=True)
-            csv_logger = CSVLogger(f"logs/csv/baseline_training_log_model_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
-            
-            print(f"\n================ Fold {fold}/{self.k} ================")
-            print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(ers_labeled_test)}")
-
-            model = self.build_model(num_classes)
-            val_ds = self.make_dataset(ers_labeled_test, ers_labels_test, val=True,ers=self.fisheye)
-            model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False, ers=self.fisheye),
-                validation_data=val_ds, 
-                epochs=self.epochs,
-		        verbose=self.verbose, 
-                callbacks=[
-                    OptimalThresholdCallback(val_ds, name="val"),
-                    csv_logger
-                ]
-            )
-
-
-            save_path = f"weights/baseline_{self.model_size}_fold{fold}.h5"
-            model.save(save_path)
-            print(f"Saved {self.model_size} model for fold {fold} -> {save_path}")
-
-
-    def train_ers_test_galar(self):
-        num_classes = Classes(self.binary).num_classes
-        dataset_loader = DatasetLoader(self.args)
-        ers_labeled_all, ers_labels_all, ers_unlabeled_all = dataset_loader.prepare_ers()
-        galar_images, galar_labels = dataset_loader.prepare_galar()
-
-        kf_gen = dataset_loader.split_patients_kfold(ers_labeled_all, ers_labels_all, ers_unlabeled_all, self.k)
-
-        for fold, (ers_labeled_train, ers_labels_train, _, _, _) in enumerate(kf_gen, 1):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/ers2galar_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
-
-            print(f"\n================ Fold {fold}/{self.k} ================")
-            print(f"Train samples: {len(ers_labeled_train)} | Test samples: {len(galar_images)}")
-
-            model = self.build_model(num_classes)
-            val_ds = self.make_dataset(galar_images, galar_labels, val=True, ers=False)
-            model.fit(
-                self.make_dataset(ers_labeled_train, ers_labels_train, shuffle=True, val=False,ers=self.fisheye),
-                validation_data=val_ds,
-                epochs=self.epochs,
-		        verbose=self.verbose, 
-                callbacks=[
-                           OptimalThresholdCallback(val_ds),
-                           csv_logger,
-                ]
-            )
-            os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/ers2galar_{self.model_size}_fold_{fold}_{timestamp}.h5")
-
-
-    def train_galar_test_ers(self):
-        num_classes = Classes(self.binary).num_classes
-        dataset_loader = DatasetLoader(self.args)
-        galar_images, galar_labels = dataset_loader.prepare_galar()
-        ers_labeled_all, ers_labels_all, _ = dataset_loader.prepare_ers()
-
-        kf_gen = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
-
-        for fold, (galar_train, galar_labels_train, galar_test, galar_labels_test, _) in enumerate(kf_gen, 1):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/galar2ers_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
-
-            model = self.build_model(num_classes)
-            val_ds = self.make_dataset(ers_labeled_all, ers_labels_all, val=True,ers=self.fisheye)
-            model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False, ers=False),
-                validation_data=val_ds,
-                epochs=self.epochs,
-		        verbose=self.verbose, 
-                callbacks=[
-                           OptimalThresholdCallback(val_ds),
-                           csv_logger
-                           ]
-            )
-            os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/galar2ers_{self.model_size}_fold_{fold}_{timestamp}.h5")
-
-    def train_galar_test_galar(self):
-        num_classes = Classes(self.binary).num_classes
-        dataset_loader = DatasetLoader(self.args)
-        galar_images, galar_labels = dataset_loader.prepare_galar()
-
-        kf_gen = dataset_loader.split_patients_kfold(galar_images, galar_labels, None, self.k)
-
-        for fold, (galar_train, galar_labels_train, galar_test, galar_labels_test, _) in enumerate(kf_gen, 1):
-            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            csv_logger = CSVLogger(f"logs/csv/galar2galar_{self.model_size}_fold_{fold}_{timestamp}.csv", append=True)
-
-            model = self.build_model(num_classes)
-            val_ds = self.make_dataset(galar_test, galar_labels_test, val=True,ers=False)
-            model.fit(
-                self.make_dataset(galar_train, galar_labels_train, shuffle=True, val=False, ers=False),
-                validation_data=val_ds,
-                epochs=self.epochs,
-		        verbose=self.verbose, 
-                callbacks=[
-                           OptimalThresholdCallback(val_ds),
-                           csv_logger
-                          ]
-            )
-            os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/galar2galar_{self.model_size}_fold{fold}_{timestamp}.h5")
         
     def train_ersXgalar_test_ersORgalar(self):
         num_classes = Classes(self.binary).num_classes
@@ -211,17 +83,14 @@ class Models:
             train_images_galar = galar_train
             train_labels_galar = galar_labels_train
 
-            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
 
-            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_ers.concatenate(train_ds_galar)
-            #train_ds = train_ds.shuffle(buffer_size=1000)
 
-            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
-            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
-            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
 
             model.fit(
@@ -230,8 +99,7 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
+                    ValidationMetricsCallback(val_ds_galar, name="GALAR_val"),
                     csv_logger
                 ]
             )
@@ -264,17 +132,14 @@ class Models:
             train_images_galar = galar_train
             train_labels_galar = galar_labels_train
 
-            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
 
-            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+            #train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
             train_ds = train_ds_ers
             #train_ds = train_ds.shuffle(buffer_size=1000)
 
-            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
-            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
-            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
-            #val_ds_galar = val_ds_galar.concatenate(train_ds_galar)
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             
             model = self.build_model(num_classes)
 
@@ -284,8 +149,7 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
+                    ValidationMetricsCallback(val_ds_galar, name="GALAR_val"),
                     csv_logger
                 ]
             )
@@ -313,23 +177,19 @@ class Models:
                 append=True
             )
 
-            train_images_ers = ers_train
-            train_labels_ers = ers_labels_train
+            #train_images_ers = ers_train
+            #train_labels_ers = ers_labels_train
             train_images_galar = galar_train
             train_labels_galar = galar_labels_train
 
-            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye)
+            #train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
 
-            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
+            train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_galar
-            #train_ds = train_ds.shuffle(buffer_size=1000)
 
-            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
-            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
-            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
-            #val_ds_ers = val_ds_ers.concatenate(train_ds_ers)
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
+            val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
 
             model.fit(
@@ -338,8 +198,7 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
+                    ValidationMetricsCallback(val_ds_galar, name="GALAR_val"),
                     csv_logger
                 ]
             )
@@ -360,7 +219,7 @@ class Models:
             base_model,
             layers.Dense(num_classes, activation=activation)
         ])
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
         model.compile(
             optimizer=optimizer,
             loss=loss,
@@ -375,23 +234,23 @@ class Models:
         )
         return model
     
-    def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False):
+    def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False, fold=1):
         AUTOTUNE = tf.data.AUTOTUNE
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
         if not val:
-            ds = ds.shuffle(buffer_size=len(images), reshuffle_each_iteration=True)
+            ds = ds.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
         if labels is not None:
             if val:
-                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
+                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=4,)
             else:
-                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
+                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers),num_parallel_calls=4,)
         else:
             if val:
-                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=AUTOTUNE,)
+                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=4,)
             else:
-                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
+                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=4,)
         if val:
-            ds = ds.cache()
+            ds = ds.cache(filename=f"/local_storage/gwo/public/gastro/galar/cache/cache_val_{'ers' if ers else 'galar'}_fold{fold}.tf-data")
         ds = ds.batch(512)
         ds = ds.prefetch(AUTOTUNE)
         return ds
@@ -402,10 +261,10 @@ class Models:
         img = tf.image.decode_jpeg(img, channels=3)
         img = tf.image.convert_image_dtype(img, tf.float32)
 
-        if ers:
-            img = self.fisheye_tf(img, zoom_factor=1.13)
-
         img = tf.image.resize_with_pad(img, 224, 224)
+
+        if ers:
+            img = self.fisheye_tf(img, zoom_factor=1.6)
 
         img = (img - 0.5) * 2.0
 
@@ -426,10 +285,10 @@ class Models:
         img = tf.image.decode_jpeg(img, channels=3)
         img = tf.image.convert_image_dtype(img, tf.float32)
 
-        if ers:
-            img = self.fisheye_tf(img, zoom_factor=1.13)
-
         img = tf.image.resize_with_pad(img, 224, 224)
+
+        if ers:
+            img = self.fisheye_tf(img, zoom_factor=1.6)
 
         img = (img - 0.5) * 2.0
 
