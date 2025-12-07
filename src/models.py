@@ -23,17 +23,9 @@ class Models:
         self.fisheye=args.fisheye
 
     def train(self):
-
-        gpus = tf.config.list_physical_devices('GPU')
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-
-        self.strategy = tf.distribute.MirroredStrategy(
-            devices=["/gpu:0","/gpu:1","/gpu:2","/gpu:3"]
-        )
-
-        print("Using GPUs:", self.strategy.num_replicas_in_sync)
-
+        os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
+        os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
+        os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
         if self.mode == 0:
             #self.baseline() # train on ers test on ers
             self.train_ers_test_ersORgalar()
@@ -224,11 +216,12 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
 
             train_ds = train_ds_ers.concatenate(train_ds_galar)
-            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+            #train_ds = train_ds.shuffle(buffer_size=1000)
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-
+            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
+            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
             model = self.build_model(num_classes)
 
             model.fit(
@@ -237,8 +230,8 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
                     csv_logger
                 ]
             )
@@ -275,12 +268,13 @@ class Models:
 
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
             train_ds = train_ds_ers
-            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+            #train_ds = train_ds.shuffle(buffer_size=1000)
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-
-            val_ds_galar = val_ds_galar.concatenate(train_ds_galar)
+            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
+            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
+            #val_ds_galar = val_ds_galar.concatenate(train_ds_galar)
             
             model = self.build_model(num_classes)
 
@@ -290,8 +284,8 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
                     csv_logger
                 ]
             )
@@ -329,11 +323,13 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False)
 
             train_ds = train_ds_galar
-            train_ds = train_ds.shuffle(buffer_size=len(ers_train) + len(galar_train))
+            #train_ds = train_ds.shuffle(buffer_size=1000)
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False)
-            val_ds_ers = val_ds_ers.concatenate(train_ds_ers)
+            val_ds_ers_small = val_ds_ers.shuffle(10000, reshuffle_each_iteration=True).take(20000)
+            val_ds_galar_small = val_ds_galar.shuffle(10000, reshuffle_each_iteration=True).take(5000)
+            #val_ds_ers = val_ds_ers.concatenate(train_ds_ers)
             model = self.build_model(num_classes)
 
             model.fit(
@@ -342,8 +338,8 @@ class Models:
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
-                    OptimalThresholdCallback(val_ds_ers, name="ERS"),
-                    OptimalThresholdCallback(val_ds_galar, name="GALAR"),
+                    OptimalThresholdCallback(val_ds_ers_small, name="ERS"),
+                    OptimalThresholdCallback(val_ds_galar_small, name="GALAR"),
                     csv_logger
                 ]
             )
@@ -352,47 +348,53 @@ class Models:
             model.save(f"weights/galar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
     
     def build_model(self, num_classes):
-        with self.strategy.scope():
-            base_model = self.get_backbone()
-            if num_classes == 2:
-                activation = "softmax"
-                loss = tf.keras.losses.CategoricalCrossentropy()
-            else:
-                activation = "sigmoid"
-                loss = "binary_crossentropy"
+        base_model = self.get_backbone()
+        if num_classes == 2:
+            activation = "softmax"
+            loss = tf.keras.losses.CategoricalCrossentropy()
+        else:
+            activation = "sigmoid"
+            loss = "binary_crossentropy"
 
-            model = models.Sequential([
-                base_model,
-                layers.Dense(num_classes, activation=activation)
-            ])
-            optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-            model.compile(
-                optimizer=optimizer,
-                loss=loss,
-                metrics=[
-                    tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
-                    tf.keras.metrics.Precision(name="precision"),
-                    tf.keras.metrics.Recall(name="sensitivity", class_id=1),
-                    tf.keras.metrics.Recall(name="specificity", class_id=0),
-                    tf.keras.metrics.AUC(name="auc"),
-                    F1Score(name="f1")
-                ]
-            )
-            return model
+        model = models.Sequential([
+            base_model,
+            layers.Dense(num_classes, activation=activation)
+        ])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.00001)
+        model.compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=[
+                tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
+                tf.keras.metrics.Precision(name="precision"),
+                tf.keras.metrics.Recall(name="sensitivity", class_id=1),
+                tf.keras.metrics.Recall(name="specificity", class_id=0),
+                tf.keras.metrics.AUC(name="auc"),
+                F1Score(name="f1")
+            ]
+        )
+        return model
     
     def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False):
+        AUTOTUNE = tf.data.AUTOTUNE
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
+        if not val:
+            ds = ds.shuffle(buffer_size=len(images), reshuffle_each_iteration=True)
         if labels is not None:
             if val:
-                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers))
+                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
             else:
-                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers))
+                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
         else:
             if val:
-                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers))
+                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=AUTOTUNE,)
             else:
-                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers))
-        return ds.batch(32 * self.strategy.num_replicas_in_sync)
+                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
+        if val:
+            ds = ds.cache()
+        ds = ds.batch(512)
+        ds = ds.prefetch(AUTOTUNE)
+        return ds
 
     
     def preprocess_with_padding(self, image_path, label=None, ers=False):
@@ -443,14 +445,15 @@ class Models:
         Returns: [H, W, 3] tensor
         """
         img_shape = tf.shape(image)
-        H, W = img_shape[0], img_shape[1]
+        H = tf.cast(img_shape[0],tf.float32)
+        W = tf.cast(img_shape[1],tf.float32)
 
         y, x = tf.meshgrid(tf.range(H), tf.range(W), indexing='ij')
         y = tf.cast(y, tf.float32)
         x = tf.cast(x, tf.float32)
 
-        cx = W / 2
-        cy = H / 2
+        cx = W / 2.0
+        cy = H / 2.0
         nx = (x - cx) / cx
         ny = (y - cy) / cy
 

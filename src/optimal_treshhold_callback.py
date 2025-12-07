@@ -12,7 +12,7 @@ class OptimalThresholdCallback(Callback):
         y_true = []
         y_pred_prob = []
 
-        for batch_imgs, batch_labels in self.val_ds:
+        for batch_imgs, batch_labels in self.val_ds.take(-1):
             pred = self.model.predict(batch_imgs, verbose=0)
             if pred.shape[1] == 2:
                 pred = pred[:, 1]

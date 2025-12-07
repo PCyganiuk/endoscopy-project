@@ -5,3 +5,6 @@ checkpoint.txt
 fold_metrics.png
 .vscode
 /plots
+/logs
+/data_summary
+/weights

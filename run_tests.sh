@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # How to run:
@@ -14,29 +15,30 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..3}; do
+for type in {0..2}; do
   for size in {0..0}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
     log_file="logs/test_type${type}_size${size}_${timestamp}_fisheye.log"
 
     echo "Starting training: type-num=${type}, model-size=${size}"
     echo "Logging to ${log_file}"
-    #export CUDA_VISIBLE_DEVICES="${type}"
-    export CUDA_VISIBLE_DEVICES="0,1,2,3"
+    export CUDA_VISIBLE_DEVICES="${type}"
+    #export CUDA_VISIBLE_DEVICES="0,1,2,3"
     nohup python3 main.py \
-      --ers-path /local_storage/common/s207254/ers_jpg/ \
-      --galar-path /local_storage/common/s207254/galar_jpg/ \
+      --ers-path /local_storage/gwo/public/gastro/galar/ers_jpg/ \
+      --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
       --type-num "${type}" \
-      --epochs 10 \
+      --epochs 15 \
       --k-folds 20 \
       --model-size "${size}" \
       --binary 1 \
-      --verbose 2 \
-      --fisheye 1 \
-      > "${log_file}" 2>&1
+      --verbose 1 \
+      --fisheye 0 \
+      > "${log_file}" 2>&1 &
 
     echo "Finished training: type-num=${type}, model-size=${size}"
     echo "---------------------------------------------"
+    sleep 1200
   done
 done
 
