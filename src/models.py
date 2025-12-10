@@ -21,8 +21,24 @@ class Models:
         self.binary = args.binary
         self.verbose = args.verbose
         self.fisheye=args.fisheye
+        self.fisheye_str=''
+        if self.fisheye:
+            self.fisheye_str = '_fisheye'
 
     def train(self):
+        gpus = tf.config.list_physical_devices('GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        self.strategy = tf.distribute.MirroredStrategy(
+            devices = [
+                "/gpu:0",
+                "/gpu:1",
+                "/gpu:2",
+                "/gpu:3"
+            ]
+        )
+        print("Using GPUs:", self.strategy.num_replicas_in_sync)
+
         os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
         os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
         os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -74,7 +90,7 @@ class Models:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
             csv_logger = CSVLogger(
-                f"logs/csv/ersXgalar_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
+                f"logs/csv/ersXgalar_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold_{fold}_{timestamp}.csv",
                 append=True
             )
 
@@ -88,7 +104,7 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_ers.concatenate(train_ds_galar)
-
+            train_ds = train_ds.shuffle(buffer_size=1000)
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
@@ -105,7 +121,7 @@ class Models:
             )
 
             os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/ersXgalar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
+            model.save(f"weights/ersXgalar_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold{fold}_{timestamp}.h5")
 
     def train_ers_test_ersORgalar(self):
         num_classes = Classes(self.binary).num_classes
@@ -123,7 +139,7 @@ class Models:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
             csv_logger = CSVLogger(
-                f"logs/csv/ers_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
+                f"logs/csv/ers_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold_{fold}_{timestamp}.csv",
                 append=True
             )
 
@@ -136,7 +152,7 @@ class Models:
 
             #train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
             train_ds = train_ds_ers
-            #train_ds = train_ds.shuffle(buffer_size=1000)
+            train_ds = train_ds.shuffle(buffer_size=1000)
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
@@ -155,7 +171,7 @@ class Models:
             )
 
             os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/ers_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
+            model.save(f"weights/ers_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold{fold}_{timestamp}.h5")
 
     def train_galar_test_ersORgalar(self):
         num_classes = Classes(self.binary).num_classes
@@ -173,7 +189,7 @@ class Models:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
             csv_logger = CSVLogger(
-                f"logs/csv/galar_test_ersORgalar_{self.model_size}_fold_{fold}_{timestamp}.csv",
+                f"logs/csv/galar_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold_{fold}_{timestamp}.csv",
                 append=True
             )
 
@@ -187,7 +203,7 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_galar
-
+            train_ds = train_ds.shuffle(buffer_size=1000)
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
@@ -204,35 +220,36 @@ class Models:
             )
 
             os.makedirs("weights", exist_ok=True)
-            model.save(f"weights/galar_test_ersORgalar_{self.model_size}_fold{fold}_{timestamp}.h5")
+            model.save(f"weights/galar_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold{fold}_{timestamp}.h5")
     
     def build_model(self, num_classes):
-        base_model = self.get_backbone()
-        if num_classes == 2:
-            activation = "softmax"
-            loss = tf.keras.losses.CategoricalCrossentropy()
-        else:
-            activation = "sigmoid"
-            loss = "binary_crossentropy"
+        with self.strategy.scope():
+            base_model = self.get_backbone()
+            if num_classes == 2:
+                activation = "softmax"
+                loss = tf.keras.losses.CategoricalCrossentropy()
+            else:
+                activation = "sigmoid"
+                loss = "binary_crossentropy"
 
-        model = models.Sequential([
-            base_model,
-            layers.Dense(num_classes, activation=activation)
-        ])
-        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-        model.compile(
-            optimizer=optimizer,
-            loss=loss,
-            metrics=[
-                tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
-                tf.keras.metrics.Precision(name="precision"),
-                tf.keras.metrics.Recall(name="sensitivity", class_id=1),
-                tf.keras.metrics.Recall(name="specificity", class_id=0),
-                tf.keras.metrics.AUC(name="auc"),
-                F1Score(name="f1")
-            ]
-        )
-        return model
+            model = models.Sequential([
+                base_model,
+                layers.Dense(num_classes, activation=activation)
+            ])
+            optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+            model.compile(
+                optimizer=optimizer,
+                loss=loss,
+                metrics=[
+                    tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
+                    tf.keras.metrics.Precision(name="precision"),
+                    tf.keras.metrics.Recall(name="sensitivity", class_id=1),
+                    tf.keras.metrics.Recall(name="specificity", class_id=0),
+                    tf.keras.metrics.AUC(name="auc"),
+                    F1Score(name="f1")
+                ]
+            )
+            return model
     
     def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False, fold=1):
         AUTOTUNE = tf.data.AUTOTUNE

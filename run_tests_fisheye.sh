@@ -22,8 +22,8 @@ for type in {0..2}; do
 
     echo "Starting training: type-num=${type}, model-size=${size}"
     echo "Logging to ${log_file}"
-    export CUDA_VISIBLE_DEVICES=$((type + 3))
-    #export CUDA_VISIBLE_DEVICES="0,1,2,3"
+    #export CUDA_VISIBLE_DEVICES=$((type + 3))
+    export CUDA_VISIBLE_DEVICES="0,1,2,3"
     nohup python3 main.py \
       --ers-path /local_storage/gwo/public/gastro/galar/ers_jpg/ \
       --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
@@ -34,11 +34,10 @@ for type in {0..2}; do
       --binary 1 \
       --verbose 1 \
       --fisheye 1 \
-      > "${log_file}" 2>&1 &
+      > "${log_file}" 2>&1
 
     echo "Finished training: type-num=${type}, model-size=${size}"
     echo "---------------------------------------------"
-    sleep 1200
   done
 done
 
