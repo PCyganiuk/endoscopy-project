@@ -3,7 +3,7 @@
 
 # How to run:
 # chmod +x run_tests.sh <- run this
-# nohup bash run_tests.sh > master_run_fisheye.log 2>&1 & <- then this
+# nohup bash run_tests_fisheye.sh > master_run_fisheye.log 2>&1 & <- then this
 
 # ps aux | grep python <- check if still running
 
