@@ -25,8 +25,8 @@ for type in {0..2}; do
     #export CUDA_VISIBLE_DEVICES="${type}"
     export CUDA_VISIBLE_DEVICES="0,1,2,3"
     nohup python3 main.py \
-      --ers-path /local_storage/gwo/public/gastro/galar/ers_jpg/ \
-      --galar-path /local_storage/gwo/public/gastro/galar/galar_jpg/ \
+      --ers-path /local_storage/common/s207254/ers_jpg/ \
+      --galar-path /local_storage/common/s207254/galar_jpg/ \
       --type-num "${type}" \
       --epochs 15 \
       --k-folds 20 \
