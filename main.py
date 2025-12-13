@@ -69,7 +69,7 @@ def setup_argument_parser():
                         required=True)
     parser.add_argument("--binary",
                         help="Choose 1 if binary(healthy/unhealthy), choose 0 if multilabel",
-                        type=bool,
+                        type=int,
                         default=0,
                         required=False)
     parser.add_argument("--verbose",
@@ -78,8 +78,8 @@ def setup_argument_parser():
                         default=2,
                         required=True)
     parser.add_argument("--fisheye",
-                        help="Choose number from 0-2",
-                        type=bool,
+                        help="Choose number from 0-1",
+                        type=int,
                         default=0,
                         required=True)
     return parser

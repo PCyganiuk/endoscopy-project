@@ -275,7 +275,8 @@ class DatasetLoader:
 
         sgkf = StratifiedGroupKFold(
             n_splits=n_splits,
-            shuffle=True
+            shuffle=True,
+            random_state=42
         )
 
         for fold, (train_idx, test_idx) in enumerate(
@@ -297,6 +298,15 @@ class DatasetLoader:
                 unlabeled_filtered = np.array(unlabeled_image_paths)[unlabeled_mask].tolist()
             else:
                 unlabeled_filtered = []
+            seed = 42
+            rng = np.random.default_rng(seed)
+
+            labeled_train = np.array(labeled_train)
+            labeled_test = np.array(labeled_test)
+
+            perm_train = rng.permutation(len(labeled_train))
+            labeled_train = labeled_train[perm_train].tolist()
+            labels_train = labels_train[perm_train]
 
             print(
                 f"Fold {fold + 1}/{n_splits}: "

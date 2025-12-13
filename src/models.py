@@ -38,7 +38,8 @@ class Models:
             ]
         )
         print("Using GPUs:", self.strategy.num_replicas_in_sync)
-
+        
+        tf.random.set_seed(42)
         os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
         os.environ["XLA_FLAGS"] = "--xla_gpu_cuda_data_dir="
         os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -104,7 +105,7 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_ers.concatenate(train_ds_galar)
-            train_ds = train_ds.shuffle(buffer_size=1000)
+            #train_ds = train_ds.shuffle(buffer_size=1000)
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
@@ -145,14 +146,14 @@ class Models:
 
             train_images_ers = ers_train
             train_labels_ers = ers_labels_train
-            train_images_galar = galar_train
-            train_labels_galar = galar_labels_train
+            #train_images_galar = galar_train
+            #train_labels_galar = galar_labels_train
 
             train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
 
             #train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
             train_ds = train_ds_ers
-            train_ds = train_ds.shuffle(buffer_size=1000)
+            #train_ds = train_ds.shuffle(buffer_size=1000)
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
@@ -203,7 +204,7 @@ class Models:
             train_ds_galar = self.make_dataset(train_images_galar, train_labels_galar, shuffle=False, val=False, ers=False, fold=fold)
 
             train_ds = train_ds_galar
-            train_ds = train_ds.shuffle(buffer_size=1000)
+            #train_ds = train_ds.shuffle(buffer_size=1000)
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_galar = self.make_dataset(galar_val, galar_labels_val, val=True, ers=False, fold=fold)
             model = self.build_model(num_classes)
@@ -255,7 +256,7 @@ class Models:
         AUTOTUNE = tf.data.AUTOTUNE
         ds = tf.data.Dataset.from_tensor_slices((images, labels) if labels is not None else images)
         if not val:
-            ds = ds.shuffle(buffer_size=8192, reshuffle_each_iteration=True)
+            ds = ds.shuffle(buffer_size=4096, reshuffle_each_iteration=True, seed=42)
         if labels is not None:
             if val:
                 ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=4,)
@@ -266,7 +267,10 @@ class Models:
                 ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=4,)
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=4,)
-        ds = ds.batch(512)
+        if self.mode == 0:
+            ds = ds.batch(512)
+        else:
+            ds = ds.batch(64)
         ds = ds.prefetch(AUTOTUNE)
         return ds
 

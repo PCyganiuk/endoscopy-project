@@ -43,5 +43,5 @@ for type in {0..2}; do
 done
 
 echo "All trainings completed successfully!"
-
+#nohup bash run_tests_fisheye.sh > master_run_fisheye.log 2>&1 &
 # nohup python3 main.py --ers-path /mnt/d/ERS/ers_jpg/ --galar-path /mnt/e/galar_jpg/ --type-num 0 --epochs 1 --k-folds 2 --model-size 0 --binary 1 --verbose 2 --fisheye 1 > logs/baseline.log 2>&1 &
