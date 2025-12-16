@@ -259,18 +259,18 @@ class Models:
             ds = ds.shuffle(buffer_size=4096, reshuffle_each_iteration=True, seed=42)
         if labels is not None:
             if val:
-                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=4,)
+                ds = ds.map(lambda x, y: self.preprocess_val(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
             else:
-                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers),num_parallel_calls=4,)
+                ds = ds.map(lambda x, y: self.preprocess_with_padding(x, y, ers=ers),num_parallel_calls=AUTOTUNE,)
         else:
             if val:
-                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=4,)
+                ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=AUTOTUNE,)
             else:
-                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=4,)
+                ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
         if self.mode == 0:
-            ds = ds.batch(512)
+            ds = ds.batch(512) #512
         else:
-            ds = ds.batch(64)
+            ds = ds.batch(128) #128
         ds = ds.prefetch(AUTOTUNE)
         return ds
 
@@ -283,7 +283,10 @@ class Models:
         img = tf.image.resize_with_pad(img, 224, 224)
 
         if ers:
+            img = tf.image.central_crop(img, 0.75)
+            img = tf.image.resize(img, (224, 224))
             img = self.fisheye_tf(img, zoom_factor=1.6)
+        
 
         img = (img - 0.5) * 2.0
 
@@ -307,6 +310,8 @@ class Models:
         img = tf.image.resize_with_pad(img, 224, 224)
 
         if ers:
+            img = tf.image.central_crop(img, 0.75)
+            img = tf.image.resize(img, (224, 224))
             img = self.fisheye_tf(img, zoom_factor=1.6)
 
         img = (img - 0.5) * 2.0
@@ -314,6 +319,7 @@ class Models:
         if label is None:
             return img
         return img, label
+
 
     def fisheye_tf(self, image, zoom_factor=1.0):
         """
