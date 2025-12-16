@@ -34,7 +34,11 @@ class Models:
                 "/gpu:0",
                 "/gpu:1",
                 "/gpu:2",
-                "/gpu:3"
+                "/gpu:3",
+                "/gpu:4",
+                "/gpu:5",
+                "/gpu:6",
+                "/gpu:7"
             ]
         )
         print("Using GPUs:", self.strategy.num_replicas_in_sync)
