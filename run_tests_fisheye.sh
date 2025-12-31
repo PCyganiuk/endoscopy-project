@@ -21,7 +21,7 @@
 mkdir -p logs
 
 # Loop over type-num and model-size combinations
-for type in {0..2}; do 
+for type in {2..2}; do 
   for size in {0..0}; do
     timestamp=$(date +"%Y-%m-%d_%H-%M-%S")
     log_file="logs/test_type${type}_size1_${timestamp}_fisheye.log"
@@ -50,3 +50,4 @@ done
 echo "All trainings completed successfully!"
 
 # nohup python3 main.py --ers-path /mnt/d/ERS/ers_jpg/ --galar-path /mnt/e/galar_jpg/ --type-num 0 --epochs 1 --k-folds 2 --model-size 0 --binary 1 --verbose 2 --fisheye 1 > logs/baseline.log 2>&1 &
+# python3 main.py --ers-path /mnt/d/ERS/ers_jpg/ --galar-path /mnt/e/galar_jpg/ --type-num 0 --epochs 20 --k-folds 20 --model-size 1 --binary 1 --verbose 2 --fisheye 1

@@ -8,6 +8,7 @@ from src.classes import Classes
 from src.f1_score import F1Score
 from src.validation_metrics_callback import ValidationMetricsCallback
 from src.dataset_loader import DatasetLoader
+from src.focal_loss import categorical_focal_loss
 from tensorflow.keras.callbacks import CSVLogger # type: ignore
 
 class Models:
@@ -26,15 +27,15 @@ class Models:
             self.fisheye_str = '_fisheye'
 
     def train(self):
-        gpus = tf.config.list_physical_devices('GPU')
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        self.strategy = tf.distribute.MirroredStrategy(
-            devices = [
-                "/gpu:0"
-            ]
-        )
-        print("Using GPUs:", self.strategy.num_replicas_in_sync)
+        #gpus = tf.config.list_physical_devices('GPU')
+        #for gpu in gpus:
+        #    tf.config.experimental.set_memory_growth(gpu, True)
+        #self.strategy = tf.distribute.MirroredStrategy(
+        #    devices = [
+        #        "/gpu:0"
+        #    ]
+        #)
+        #print("Using GPUs:", self.strategy.num_replicas_in_sync)
         
         tf.random.set_seed(42)
         os.environ["TF_XLA_FLAGS"] = "--tf_xla_auto_jit=0"
@@ -221,33 +222,34 @@ class Models:
             model.save(f"weights/galar_test_ersORgalar_{self.model_size}{self.fisheye_str}_fold{fold}_{timestamp}.h5")
     
     def build_model(self, num_classes):
-        with self.strategy.scope():
-            base_model = self.get_backbone()
-            if num_classes == 2:
-                activation = "softmax"
-                loss = tf.keras.losses.CategoricalCrossentropy()
-            else:
-                activation = "sigmoid"
-                loss = "binary_crossentropy"
+        #with self.strategy.scope():
+        base_model = self.get_backbone()
+        if num_classes == 2:
+            activation = "softmax"
+            #loss = tf.keras.losses.CategoricalCrossentropy()
+            loss = categorical_focal_loss(gamma=1.0, alpha=tf.constant([0.75, 0.25]))
+        else:
+            activation = "sigmoid"
+            loss = "binary_crossentropy"
 
-            model = models.Sequential([
-                base_model,
-                layers.Dense(num_classes, activation=activation)
-            ])
-            optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
-            model.compile(
-                optimizer=optimizer,
-                loss=loss,
-                metrics=[
-                    tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
-                    tf.keras.metrics.Precision(name="precision"),
-                    tf.keras.metrics.Recall(name="sensitivity", class_id=1),
-                    tf.keras.metrics.Recall(name="specificity", class_id=0),
-                    tf.keras.metrics.AUC(name="auc"),
-                    F1Score(name="f1")
-                ]
-            )
-            return model
+        model = models.Sequential([
+            base_model,
+            layers.Dense(num_classes, activation=activation)
+        ])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0000001)
+        model.compile(
+            optimizer=optimizer,
+            loss=loss,
+            metrics=[
+                tf.keras.metrics.CategoricalAccuracy(name="categorical_accuracy"),
+                tf.keras.metrics.Precision(name="precision"),
+                tf.keras.metrics.Recall(name="sensitivity", class_id=1),
+                tf.keras.metrics.Recall(name="specificity", class_id=0),
+                tf.keras.metrics.AUC(name="auc"),
+                F1Score(name="f1")
+            ]
+        )
+        return model
     
     def make_dataset(self, images, labels=None, shuffle=False, val=False, ers=False, fold=1):
         AUTOTUNE = tf.data.AUTOTUNE
@@ -265,9 +267,9 @@ class Models:
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
         if self.mode == 0:
-            ds = ds.batch(64,drop_remainder=True) #512
+            ds = ds.batch(32,drop_remainder=True) #64
         else:
-            ds = ds.batch(32,drop_remainder=True) #128
+            ds = ds.batch(32,drop_remainder=True) #32
         ds = ds.prefetch(AUTOTUNE)
         return ds
 
@@ -282,7 +284,7 @@ class Models:
         if ers:
             img = tf.image.central_crop(img, 0.75)
             img = tf.image.resize(img, (224, 224))
-            img = self.fisheye_tf(img, zoom_factor=1.6)
+            img = self.fisheye_tf(img,1.6)
         
 
         img = (img - 0.5) * 2.0
@@ -309,7 +311,7 @@ class Models:
         if ers:
             img = tf.image.central_crop(img, 0.75)
             img = tf.image.resize(img, (224, 224))
-            img = self.fisheye_tf(img, zoom_factor=1.6)
+            img = self.fisheye_tf(img,1.6)
 
         img = (img - 0.5) * 2.0
 
