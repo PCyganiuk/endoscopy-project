@@ -31,14 +31,7 @@ class Models:
             tf.config.experimental.set_memory_growth(gpu, True)
         self.strategy = tf.distribute.MirroredStrategy(
             devices = [
-                "/gpu:0",
-                "/gpu:1",
-                "/gpu:2",
-                "/gpu:3",
-                "/gpu:4",
-                "/gpu:5",
-                "/gpu:6",
-                "/gpu:7"
+                "/gpu:0"
             ]
         )
         print("Using GPUs:", self.strategy.num_replicas_in_sync)
@@ -272,9 +265,9 @@ class Models:
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
         if self.mode == 0:
-            ds = ds.batch(512) #512
+            ds = ds.batch(64,drop_remainder=True) #512
         else:
-            ds = ds.batch(128) #128
+            ds = ds.batch(32,drop_remainder=True) #128
         ds = ds.prefetch(AUTOTUNE)
         return ds
 

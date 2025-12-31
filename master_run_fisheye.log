@@ -1,0 +1,3 @@
+nohup: ignoring input
+Starting training: type-num=0, model-size=0
+Logging to logs/test_type0_size1_2025-12-31_10-47-55_fisheye.log
