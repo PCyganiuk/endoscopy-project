@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import glob
 import os
 
-LOG_DIR = "/mnt/e/logs-07-12-25/csv"
+LOG_DIR = "/mnt/e/logs-05-01-26/csv"
 
 OUTPUT_FILES = [
     "plots/ers_test_ersORgalar.png",
@@ -14,9 +14,9 @@ OUTPUT_FILES = [
 ]
 
 csv_files_t = [
-    sorted(glob.glob(os.path.join(LOG_DIR, "ers_test_ersORgalar_0_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_0_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "galar_test_ersORgalar_0_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "ers_test_ersORgalar_1_fisheye_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_1_fisheye_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "galar_test_ersORgalar_1_fisheye_fold_*.csv"))),
     #sorted(glob.glob(os.path.join(LOG_DIR, "galar2ers_0_fold_*.csv"))),
     #sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_0_fold_*.csv"))),
 ]
@@ -51,7 +51,7 @@ for csv_files, OUTPUT_FILE in zip(csv_files_t, OUTPUT_FILES):
         ax.set_xlabel("Epoch")
         ax.set_ylabel(metric)
         # Each plot uses its own scale (we removed ax.set_ylim(0,1))
-        ax.set_ylim(0,1)
+        #ax.set_ylim(0,1)
         ax.legend()
         ax.grid(True)
 

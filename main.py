@@ -82,6 +82,16 @@ def setup_argument_parser():
                         type=int,
                         default=0,
                         required=True)
+    parser.add_argument("--from-fold",
+                        help="Choose number from 0-1",
+                        type=int,
+                        default=0,
+                        required=False)
+    parser.add_argument("--to-fold",
+                        help="Choose number from 0-1",
+                        type=int,
+                        default=0,
+                        required=False)
     return parser
 
 def parse_args(args):

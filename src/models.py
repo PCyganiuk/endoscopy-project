@@ -23,6 +23,8 @@ class Models:
         self.verbose = args.verbose
         self.fisheye=args.fisheye
         self.fisheye_str=''
+        self.from_fold = args.from_fold
+        self.to_fold = args.to_fold
         if self.fisheye:
             self.fisheye_str = '_fisheye'
 
@@ -86,6 +88,13 @@ class Models:
         for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
                 (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
 
+            if self.from_fold != 0:
+                if fold < self.from_fold:
+                    continue
+            if self.to_fold !=0:
+                if fold > self.to_fold:
+                    continue
+
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
             csv_logger = CSVLogger(
@@ -134,6 +143,13 @@ class Models:
 
         for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
                 (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
+
+            if self.from_fold != 0:
+                if fold < self.from_fold:
+                    continue
+            if self.to_fold !=0:
+                if fold > self.to_fold:
+                    continue
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
@@ -184,6 +200,13 @@ class Models:
 
         for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
                 (galar_train, galar_labels_train, galar_val, galar_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_galar), 1):
+
+            if self.from_fold != 0:
+                if fold < self.from_fold:
+                    continue
+            if self.to_fold !=0:
+                if fold > self.to_fold:
+                    continue
 
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             os.makedirs("logs/csv", exist_ok=True)
@@ -266,10 +289,9 @@ class Models:
                 ds = ds.map(lambda x: self.preprocess_val(x, ers=ers),num_parallel_calls=AUTOTUNE,)
             else:
                 ds = ds.map(lambda x: self.preprocess_with_padding(x, ers=ers),num_parallel_calls=AUTOTUNE,)
-        if self.mode == 0:
-            ds = ds.batch(32,drop_remainder=True) #64
-        else:
-            ds = ds.batch(32,drop_remainder=True) #32
+
+        ds = ds.batch(16,drop_remainder=True)
+        
         ds = ds.prefetch(AUTOTUNE)
         return ds
 
