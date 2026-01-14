@@ -28,8 +28,24 @@ class TrainConfig:
     mode: str
     factor: float
     patiance: int
-    
 
+@dataclass
+class DataConfig:
+    csv_path: str
+    frames_root: str
+    image_size: tuple[int, int] = (224, 224)
+    batch_size: int = 128
+    num_workers: int = 4
+    folds: int = 5
+    seed: int = 42
+    pin_memory: bool = True
+
+@dataclass
+class PathsConfig:
+    model_path: str
+    metrics_json_path: str
+    
+    
 
 
 

@@ -1,12 +1,6 @@
-import torch 
-import torch.optim as optim
-import torch.nn as nn
-from datetime import datetime
-from torch.utils.data import DataLoader
-from torchvision.ops import sigmoid_focal_loss
-from config.config import ModelConfig, TrainConfig
-from models_manager.models import ModelBuilder
-from torch.utils.tensorboard import SummaryWriter
+import torch
+from pathlib import Path
+import json
 from sklearn.metrics import (
     f1_score, precision_score, recall_score,
     confusion_matrix, accuracy_score, roc_auc_score
@@ -31,8 +25,8 @@ class Metrics:
 
     def get_logits_targets(self):
         return( 
-            torch.cat(self.logits_history),
-            torch.cat(self.targets_history)
+            torch.cat(self.logits_history, dim=0),
+            torch.cat(self.targets_history, dim=0)
         )
     
 
@@ -45,7 +39,8 @@ class CalculateMetrics:
             "accuracy": [],
             "auc": [],
             "predictions": [],
-            "targets": []
+            "targets": [],
+            "confusion_matrix": []
             }
 
     def get_single_label_metrics(self, logits, targets):
@@ -59,39 +54,58 @@ class CalculateMetrics:
         targets = targets.detach().cpu().numpy()
 
         self.history["f1"].append(
-            f1_score(targets, preds, average="macro")
+            f1_score(targets, preds, average="macro", zero_division=0)
         )
         self.history["precision"].append(
-            precision_score(targets, preds, average="macro")
+            precision_score(targets, preds, average="macro", zero_division=0)
         )
         self.history["recall"].append(
-            recall_score(targets, preds, average="macro")
+            recall_score(targets, preds, average="macro", zero_division=0)
         )
         self.history["accuracy"].append(
             accuracy_score(targets, preds)
         )
 
-        probs = torch.softmax(logits, dim=1)
-        self.history["auc"].append(
-            roc_auc_score(
+        self.history["confusion_matrix"].append(
+            confusion_matrix(y_true=targets, y_pred=preds).tolist()
+        )
+
+        probs = torch.softmax(logits, dim=1).detach().cpu().numpy()
+        try:
+            
+            auc = roc_auc_score(
                 targets,
                 probs,
                 multi_class="ovr",
                 average="macro"
-            )
-        )
+                )
+            
+        except ValueError:
+            auc = None
 
-    def get_predictions_targets(self, logits, targets, epoch):
-        
-        targets = targets.detach().cpu().numpy()
-        preds  = torch.argmax(logits.detach().cpu(), dim=1).numpy()
-        self.history["targets"].append(targets.tolist())
-        self.history["predictions"].append(preds.tolist())
-        print("Saved targets and predictions for epoch: {}".format(epoch+1))
+        self.history["auc"].append(auc)
+
+        return {
+            "f1": self.history["f1"][-1],
+            "precision": self.history["precision"][-1],
+            "recall": self.history["recall"][-1],
+            "accuracy": self.history["accuracy"][-1],
+            "auc": self.history["auc"][-1],
+            "confusion_matrix": self.history["confusion_matrix"][-1]
+        }
+
 
     def get_history(self):
         return self.history
+    
 
+def single_epoch_metric_dump(jsonl_path: str, row: dict) -> None:
+
+    path = Path(jsonl_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 

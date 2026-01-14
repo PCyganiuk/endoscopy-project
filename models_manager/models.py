@@ -6,11 +6,33 @@ from torchvision.models import resnet50, mobilenet_v2, densenet121, ResNet50_Wei
 from config.config import ModelConfig
 
 class ModelBuilder:
+    """
+    ModelBuilder odpowiada za zbudowanie narzędzi wykorzystywanych w pętli treningowej.
+    -> modelu: backbone, 
+    -> funkcji straty,
+    -> optymalizatora.
+    Klasa przyjmuje argumenty z pliku konfiguracyjnego
+    """
     def __init__(self, cfg: ModelConfig):
+        """
+        Parametry
+        ---------
+        cfg: ModelConfig
+            Obiekt konfiguracji zawiera:
+            - model_name: wybrana architektura (np.: "resnet50", "mobilenetv2", "densenet121")
+            - num_classes: liczba klas na wyjściu
+            - multi_label: czy rozwiązywany problem wymaga wielu etykiet dla jednej próbki
+            - use_focal_loss: czy użyć focal loss
+            - opt_name: nazwa optymalizatora (np.: "adam", "adamw", "sdg")
+            - learning_rate: wybrana wartość współczynnika uczenia
+            - weight_decay: wybrana wartość zaniku wag
+        """
         self.cfg = cfg
 
-    def _build_backbone(self):
-
+    def _build_backbone(self) -> torch.nn.Module:
+        """
+        Buduje backbon'e modelu poprzez torchvision, dostosowuje ostatnią warstwę do liczby klas podanej w konfiguracji 
+        """
         model_name = self.cfg.model_name
 
 
@@ -41,8 +63,12 @@ class ModelBuilder:
         else:
             raise ValueError(f"Unkown model: {model_name} was given!")
         
-    def _build_loss(self):
-
+    def _build_loss(self) ->torch.nn.Module:
+        """
+        Buduje funkcje straty w zależności od typu zadania:
+        - single-label: BCEWithLogitsLoss/FocalLoss
+        - multi-label: CrossEntropyLoss
+        """
         if self.cfg.multi_label:
 
             if self.cfg.use_focal_loss:
@@ -59,8 +85,13 @@ class ModelBuilder:
         
         return loss
         
-    def _build_optimizer(self, model):
-
+    def _build_optimizer(self, model) -> torch.optim.Optimizer:
+        """
+        Buduje ooptymalizator na podstawie pliku konfiguracyjnego i hiperparametrów.
+        - Adam
+        - AdamW
+        - SDG
+        """
         optimizer_name = self.cfg.opt_name.lower()
 
         if optimizer_name == "adam":
@@ -79,6 +110,10 @@ class ModelBuilder:
     
     
     def _build(self):
+        """
+        Zadaniem funkcji jest przekazanie parametrów konfiguracyjnych, a następnie
+        zwrócenie elementów niezbędnych w pętli treningowej.
+        """
         backbone = self._build_backbone()
         loss_fn = self._build_loss()
         optimizer = self._build_optimizer(model=backbone)
