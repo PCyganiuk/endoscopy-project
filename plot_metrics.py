@@ -3,20 +3,20 @@ import matplotlib.pyplot as plt
 import glob
 import os
 
-LOG_DIR = "/mnt/e/logs-05-01-26/csv"
+LOG_DIR = "logs/csv"
 
 OUTPUT_FILES = [
-    "plots/ers_test_ersORgalar.png",
-    "plots/ersXgalar_test_ersORgalar.png",
-    "plots/galar_test_ersORgalar.png",
+    "plots/kvasir_test_ersO.png",
+    #"plots/ersXgalar_test_ersORgalar.png",
+    #"plots/galar_test_ersORgalar.png",
     #"plots/galar2ers_metrics.png",
     #"plots/ersXgalar_test_ersORgalar_metrics.png",
 ]
 
 csv_files_t = [
-    sorted(glob.glob(os.path.join(LOG_DIR, "ers_test_ersORgalar_1_fisheye_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_1_fisheye_fold_*.csv"))),
-    sorted(glob.glob(os.path.join(LOG_DIR, "galar_test_ersORgalar_1_fisheye_fold_*.csv"))),
+    sorted(glob.glob(os.path.join(LOG_DIR, "kvasir_test_ers_0_fisheye_fold_*.csv"))),
+    #sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_1_fisheye_fold_*.csv"))),
+    #sorted(glob.glob(os.path.join(LOG_DIR, "galar_test_ersORgalar_1_fisheye_fold_*.csv"))),
     #sorted(glob.glob(os.path.join(LOG_DIR, "galar2ers_0_fold_*.csv"))),
     #sorted(glob.glob(os.path.join(LOG_DIR, "ersXgalar_test_ersORgalar_0_fold_*.csv"))),
 ]

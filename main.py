@@ -47,6 +47,10 @@ def setup_argument_parser():
                         help="Path for Galar dataset (folder containing patients ids e.g. \"0001\")",
                         type=dir_path,
                         required=False)
+    parser.add_argument("--kvasir-path",
+                        help="Path for Kvasir dataset",
+                        type=dir_path,
+                        required=False)
     parser.add_argument("--type-num",
                         help="Choose number from 0 to 4 to define which experiment to run",
                         type=int,

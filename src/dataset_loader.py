@@ -4,7 +4,7 @@ import os
 import re
 
 from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 
 from src.classes import Classes
 
@@ -14,9 +14,10 @@ class DatasetLoader:
 
         self.ers_path = args.ers_path
         self.galar_path = args.galar_path
+        self.kvasir_path = args.kvasir_path
         #self.ers_path = "/mnt/d/ERS/ers_jpg/"
         #self.galar_path = '/mnt/e/galar_jpg/'
-
+        #self.kvasir_path = '/mnt/e/kvasir-dataset-v2/'
         self.train_size = args.train_size
         self.test_size = args.test_size
         self.binary = args.binary
@@ -192,20 +193,29 @@ class DatasetLoader:
         return labeled_image_paths, multi_hot_labels
     
     def prepare_kvasir(self):
-        classes = Classes(False)
         labeled_image_paths = []
-        multi_hot_labels = []
-        for class_name, label in classes.kvasir_label_map.items():
-            class_path = os.path.join(self.kvasir_path, class_name)
-            if not os.path.exists(class_path):
+        binary_labels = []
+
+        for folder_name in os.listdir(self.kvasir_path):
+            folder_path = os.path.join(self.kvasir_path, folder_name)
+
+            if not os.path.isdir(folder_path):
                 continue
-            for fname in os.listdir(class_path):
+
+            # Determine label
+            if folder_name.lower().startswith("normal"):
+                label = [0, 1]
+            else:
+                label = [1, 0]
+
+            for fname in os.listdir(folder_path):
                 if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
-                    file_path = os.path.join(class_path, fname)
+                    file_path = os.path.join(folder_path, fname)
                     labeled_image_paths.append(file_path)
-                    multi_hot_labels.append(label)
-        
-        return labeled_image_paths, multi_hot_labels
+                    binary_labels.append(label)
+
+        return labeled_image_paths, binary_labels
+
 
     
     def split_labeled_by_patient_id(
@@ -260,7 +270,7 @@ class DatasetLoader:
         labeled_image_paths: list[str],
         labels: np.array,
         unlabeled_image_paths: list[str] = None,
-        n_splits=20
+        n_splits=20,
     ):
         def extract_patient_id(path):
             match = re.search(r"/(\d+)/", path)
@@ -317,8 +327,53 @@ class DatasetLoader:
 
             yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
 
+    def split_kfold(
+        self,
+        labeled_image_paths: list[str],
+        labels: np.array,
+        unlabeled_image_paths: list[str] = None,
+        n_splits=20
+    ):
+        # Convert multi-hot labels to class indices
+        labels = np.asarray(labels)
+        y = labels.argmax(axis=1)
+
+        X_dummy = np.zeros(len(y))
+
+        skf = StratifiedKFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=42
+        )
+
+        for fold, (train_idx, test_idx) in enumerate(
+            skf.split(X_dummy, y)
+        ):
+            labeled_train = np.array(labeled_image_paths)[train_idx].tolist()
+            labels_train = labels[train_idx]
+
+            labeled_test = np.array(labeled_image_paths)[test_idx].tolist()
+            labels_test = labels[test_idx]
+
+            # Without groups, we cannot filter unlabeled by patient
+            unlabeled_filtered = unlabeled_image_paths if unlabeled_image_paths is not None else []
+
+            # Shuffle train set
+            rng = np.random.default_rng(42)
+            perm_train = rng.permutation(len(labeled_train))
+
+            labeled_train = np.array(labeled_train)[perm_train].tolist()
+            labels_train = labels_train[perm_train]
+
+            print(
+                f"Fold {fold + 1}/{n_splits}: "
+                f"Train samples={len(train_idx)}, Test samples={len(test_idx)}"
+            )
+
+            yield labeled_train, labels_train, labeled_test, labels_test, unlabeled_filtered
+
 
 
 #loader = DatasetLoader()
-#labeled,labels = loader.prepare_galar()
+#labeled,labels = loader.prepare_kvasir()
 #loader.split_labeled_by_patient_id(labeled, labels)
