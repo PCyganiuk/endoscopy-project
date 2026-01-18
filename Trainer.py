@@ -6,6 +6,7 @@ from torchvision.transforms import v2
 from config.config import ModelConfig, TrainConfig, PathsConfig
 from models_manager.models import ModelBuilder
 from metrics_manager.metrics_manager import CalculateMetrics, Metrics, single_epoch_metric_dump
+from seed_utils import SEED, set_global_seed
 
 class Trainer:
     """
@@ -21,6 +22,7 @@ class Trainer:
         Buduje model/optimizer/loss, zapisuje konfigurację i dataloadery, ustawia device.
         """
         
+        set_global_seed(SEED)
         self.model_cfg = model_cfg
         self.train_cfg = train_cfg
         self.paths = path_cfg
@@ -34,7 +36,7 @@ class Trainer:
     
         builder = ModelBuilder(model_cfg)
         self.model, self.loss_fn, self.optimizer = builder._build()
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else print("DEVICE IS NOT CUDA !!!!!!!!!!!"))
         self.model.to(self.device)
         self.gpu_augment = self._build_gpu_augment()
 
@@ -135,8 +137,6 @@ class Trainer:
             epoch_number += 1
 
     
-
-
     def _build_scheduler(self):
         """
         Tworzy scheduler wg `train_cfg` (cosine/step/plateau); zwraca scheduler lub None.

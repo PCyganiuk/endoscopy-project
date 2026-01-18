@@ -10,7 +10,6 @@ class ModelConfig:
     opt_name: str
     weight_decay: int
 
-    use_focal_loss: bool #= False
 
 
 @dataclass
@@ -37,7 +36,7 @@ class DataConfig:
     batch_size: int = 128
     num_workers: int = 4
     folds: int = 5
-    seed: int = 42
+    seed: int = 190836
     pin_memory: bool = True
 
 @dataclass
@@ -46,7 +45,6 @@ class PathsConfig:
     metrics_json_path: str
     
     
-
 
 
 

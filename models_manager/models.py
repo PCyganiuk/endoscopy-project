@@ -22,7 +22,6 @@ class ModelBuilder:
             - model_name: wybrana architektura (np.: "resnet50", "mobilenetv2", "densenet121")
             - num_classes: liczba klas na wyjściu
             - multi_label: czy rozwiązywany problem wymaga wielu etykiet dla jednej próbki
-            - use_focal_loss: czy użyć focal loss
             - opt_name: nazwa optymalizatora (np.: "adam", "adamw", "sdg")
             - learning_rate: wybrana wartość współczynnika uczenia
             - weight_decay: wybrana wartość zaniku wag
@@ -63,19 +62,16 @@ class ModelBuilder:
         else:
             raise ValueError(f"Unkown model: {model_name} was given!")
         
+
+        
     def _build_loss(self) ->torch.nn.Module:
         """
         Buduje funkcje straty w zależności od typu zadania:
-        - single-label: BCEWithLogitsLoss/FocalLoss
+        - single-label: BCEWithLogitsLoss
         - multi-label: CrossEntropyLoss
         """
         if self.cfg.multi_label:
-
-            if self.cfg.use_focal_loss:
-                return None
-            
-            else:
-                loss = nn.BCEWithLogitsLoss()
+            loss = nn.BCEWithLogitsLoss()
 
         elif not self.cfg.multi_label:
             loss = nn.CrossEntropyLoss()

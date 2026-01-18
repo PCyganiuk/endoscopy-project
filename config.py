@@ -42,9 +42,8 @@ class DataConfig:
     batch_size = 256
     num_workers=8
     folds=5
-    seed=42
+    seed=190836
     pin_memory=True
-
 
 
 

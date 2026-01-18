@@ -1,9 +1,11 @@
 from config.config import DataConfig, ModelConfig, PathsConfig, TrainConfig
 from data_manager.dataloaders import FrameDataModule
 from Trainer import Trainer
+from seed_utils import SEED, set_global_seed
 
 
 def main():
+    set_global_seed(SEED)
     data_cfg = DataConfig(
         csv_path="merged_galar.csv",
         frames_root="/home/blade/ml/studia/zpb",
@@ -11,7 +13,7 @@ def main():
         batch_size=128,
         num_workers=4,
         folds=5,
-        seed=42,
+        seed=SEED,
         pin_memory=True,
     )
 
