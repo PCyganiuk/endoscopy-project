@@ -214,6 +214,8 @@ class DatasetLoader:
                     labeled_image_paths.append(file_path)
                     binary_labels.append(label)
 
+        binary_labels = np.array(binary_labels, dtype=np.float32)
+
         return labeled_image_paths, binary_labels
 
 

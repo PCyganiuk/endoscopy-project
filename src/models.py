@@ -48,11 +48,13 @@ class Models:
             self.train_ers_test_ersORgalar()
         elif self.mode == 4:
             self.train_galar_test_ersORgalar()
-        elif self.mode == 2:
+        elif self.mode == 5:
             self.train_ersXgalar_test_ersORgalar() # train on ers x galar test on ers and galar separetely
         elif self.mode == 0:
             self.train_ers_test_ersORkvasir()
         elif self.mode == 1:
+            self.train_kvasirXers_test_ers()
+        elif self.mode == 2:
             self.train_kvasir_test_ers()
 
     def get_backbone(self):
@@ -286,7 +288,7 @@ class Models:
 
             val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
             val_ds_kvasir = self.make_dataset(kvasir_val, kvasir_labels_val, val=True, ers=True, fold=fold)
-            val_ds_kvasir.concatenate(train_ds_kvasir)
+            val_ds_kvasir = val_ds_kvasir.concatenate(train_ds_kvasir)
             val_ds_kvasir = val_ds_kvasir.shuffle(300)
             model = self.build_model(num_classes)
 
@@ -301,6 +303,59 @@ class Models:
                 ]
             )
 
+    def train_kvasirXers_test_ers(self):
+        num_classes = Classes(self.binary).num_classes
+        dataset_loader = DatasetLoader(self.args)
+
+        kvasir_images, kvasir_labels = dataset_loader.prepare_kvasir()
+        ers_images, ers_labels, _ = dataset_loader.prepare_ers()
+
+        kf_gen_ers = dataset_loader.split_patients_kfold(ers_images, ers_labels, None, self.k)
+        kf_gen_kvasir = dataset_loader.split_kfold(kvasir_images, kvasir_labels, None, self.k)
+
+        for fold, ((ers_train, ers_labels_train, ers_val, ers_labels_val, _),
+                (kvasir_train, kvasir_labels_train, kvasir_val, kvasir_labels_val, _)) in enumerate(zip(kf_gen_ers, kf_gen_kvasir), 1):
+
+            if self.from_fold != 0:
+                if fold < self.from_fold:
+                    continue
+            if self.to_fold !=0:
+                if fold > self.to_fold:
+                    continue
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            os.makedirs("logs/csv", exist_ok=True)
+            csv_logger = CSVLogger(
+                f"logs/csv/kvasirXers_test_ers_{self.model_size}{self.fisheye_str}_fold_{fold}_{timestamp}.csv",
+                append=True
+            )
+
+            train_images_ers = ers_train
+            train_labels_ers = ers_labels_train
+
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
+
+            train_ds_kvasir = self.make_dataset(kvasir_train, kvasir_labels_train, shuffle=False, val=False, ers=False, fold=fold)
+            train_ds = train_ds_kvasir
+            train_ds = train_ds.concatenate(train_ds_ers)
+            train_ds = train_ds.shuffle(buffer_size=100)
+
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
+            #val_ds_kvasir = self.make_dataset(kvasir_val, kvasir_labels_val, val=True, ers=True, fold=fold)
+            #val_ds_kvasir.concatenate(train_ds_kvasir)
+            #val_ds_kvasir = val_ds_kvasir.shuffle(300)
+            model = self.build_model(num_classes)
+
+            model.fit(
+                train_ds,
+                validation_data=val_ds_ers,
+                epochs=self.epochs,
+                verbose=self.verbose,
+                callbacks=[
+                    csv_logger
+                ]
+            )
+    
     def train_kvasir_test_ers(self):
         num_classes = Classes(self.binary).num_classes
         dataset_loader = DatasetLoader(self.args)
@@ -331,21 +386,22 @@ class Models:
             train_images_ers = ers_train
             train_labels_ers = ers_labels_train
 
-            #train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
+            train_ds_ers = self.make_dataset(train_images_ers, train_labels_ers, shuffle=False, val=False, ers=self.fisheye, fold=fold)
 
             train_ds_kvasir = self.make_dataset(kvasir_train, kvasir_labels_train, shuffle=False, val=False, ers=False, fold=fold)
             train_ds = train_ds_kvasir
-            #train_ds = train_ds.shuffle(buffer_size=1000)
+            #train_ds = train_ds.shuffle(buffer_size=100)
 
-            #val_ds_kvasir = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
-            val_ds_kvasir = self.make_dataset(kvasir_val, kvasir_labels_val, val=True, ers=True, fold=fold)
+            val_ds_ers = self.make_dataset(ers_val, ers_labels_val, val=True, ers=self.fisheye, fold=fold)
+            #val_ds_kvasir = self.make_dataset(kvasir_val, kvasir_labels_val, val=True, ers=True, fold=fold)
             #val_ds_kvasir.concatenate(train_ds_kvasir)
             #val_ds_kvasir = val_ds_kvasir.shuffle(300)
+            val_ds_ers = val_ds_ers.concatenate(train_ds_ers)
             model = self.build_model(num_classes)
 
             model.fit(
                 train_ds,
-                validation_data=val_ds_kvasir,
+                validation_data=val_ds_ers,
                 epochs=self.epochs,
                 verbose=self.verbose,
                 callbacks=[
@@ -359,9 +415,9 @@ class Models:
         if num_classes == 2:
             activation = "softmax"
             #loss = tf.keras.losses.CategoricalCrossentropy()
-            if self.mode == 1:
+            if self.mode == 2:
                 loss = categorical_focal_loss(gamma=1.0, alpha=0.25) #2.0 alpha=tf.constant([0.2, 0.8])
-            elif self.mode == 0:
+            else:
                 loss = categorical_focal_loss(gamma=2.0, alpha=tf.constant([0.2, 0.8]))
         else:
             activation = "sigmoid"
